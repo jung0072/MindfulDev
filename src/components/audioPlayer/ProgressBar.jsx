@@ -6,7 +6,7 @@ const ProgressBar = ({ currentTime, duration }) => {
   const progress = Math.floor((currentTime / duration) * 100);
   return (
     <div className="mx-[33px]">
-      {/* ProgressBarHandle is not moving */}
+      {/* ProgressBarHandle is not moving  */}
       <div className={`pl-[${progress}%]`}>
         <div
           id="progressBarHandle"

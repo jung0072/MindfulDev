@@ -2,14 +2,13 @@ import React from "react";
 import { formatTime } from "../../utils/formatTime";
 
 const ProgressBar = ({ currentTime, duration }) => {
-  // console.log("ProgressBar render / CurrentTime: ", currentTime);
 
   const progress = ((currentTime / duration) * 100).toFixed(1);
 
   return (
     <div className="mx-[33px]">
-      {/* ProgressBarHandle is not moving  */}
       <div
+      // Dynamic values require inline styling
         style={{
           transform: `translateX(${progress}%)`,
         }}>

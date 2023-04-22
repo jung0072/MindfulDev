@@ -75,14 +75,6 @@ export default {
       backgroundImage: {
         "main-bg": "url('/src/assets/main-bg.svg')",
       },
-      gridTemplateColumns: {
-        "statistics-diagram": "repeat(auto-fit, 360px)",
-        portfolio: "repeat(2, minmax(150px, 528px))",
-        16: "repeat(16, minmax(0, 1fr))",
-        17: "repeat(17, minmax(0, 1fr))",
-        18: "repeat(18, minmax(0, 1fr))",
-        19: "repeat(19, minmax(0, 1fr))",
-      },
     },
   },
   plugins: [],

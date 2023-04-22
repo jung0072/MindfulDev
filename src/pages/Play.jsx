@@ -11,7 +11,8 @@ const Play = () => {
   const [duration, setDuration] = React.useState("00:00");
 
   React.useEffect(() => {
-    audioPlayer.current = new Audio(tracks[0].src);
+    console.log("Play UseEffect");
+    audioPlayer.current = new Audio(tracks[1].src);
     audioPlayer.current.addEventListener("loadedmetadata", onLoadedMetadata);
     audioPlayer.current.addEventListener("timeupdate", () => {
       setCurrentTime(audioPlayer.current.currentTime);
@@ -19,13 +20,14 @@ const Play = () => {
   }, []);
 
   const onLoadedMetadata = () => {
+    console.log("onLoadedMetadata");
     setCurrentTrack(audioPlayer.current);
     setDuration(audioPlayer.current.duration);
   };
 
   const handleControl = (ev) => {
     const buttonID = ev.currentTarget.id;
-    console.log(buttonID);
+    console.log("handle control for button:", buttonID);
     switch (buttonID) {
       case "10sBack":
         audioPlayer.current.currentTime -= 10;

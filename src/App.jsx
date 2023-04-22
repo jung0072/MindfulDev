@@ -1,5 +1,3 @@
-import "./App.css";
-
 import { Routes, Route } from "react-router-dom";
 
 import Header from "./components/Header";
@@ -9,7 +7,7 @@ import Footer from "./components/Footer";
 
 function App() {
   return (
-    <div className="w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">
+    <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">
       <Header></Header>
       <Routes>
         <Route path="/" element={<Home></Home>}></Route>

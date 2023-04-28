@@ -10,7 +10,7 @@ import Setting from "./pages/Setting";
 import { PlayOptionProvider } from "./context/playOptionContext";
 
 function App() {
-  console.log("------App.jsx-----");
+  // console.log("------App.jsx-----");
 
   return (
     <PlayOptionProvider>

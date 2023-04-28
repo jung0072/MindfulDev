@@ -56,9 +56,10 @@ export default {
       },
       outlineColor: {
         "primary-20": "#81C895",
+        "error-100": "#FF4242",
       },
       backgroundColor: {
-        "grey-20": "#F8F8F8",
+        "grey-20": "#AAAAAA",
         "grey-100": "#1C2731",
         "success-20": "#E0F7D8",
         "primary-80": "#166534",

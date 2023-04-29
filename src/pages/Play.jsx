@@ -13,56 +13,83 @@ import { PlayOptionContext } from "../context/playOptionContext";
 
 import trackGenerator from "../utils/trackGenerator";
 
+import { useStateWithCallback } from "../hooks/useStateWithCallback";
+
 const Play = () => {
   // console.log("------Play.jsx-----");
   const ctx = React.useContext(PlayOptionContext);
   const audioPlayer = React.useRef();
+  const audioPlayer2 = React.useRef();
   const [isPlaying, setIsPlaying] = React.useState(false);
-  const [tracks, setTracks] = React.useState([]);
+  const [tracks, setTracks] = useStateWithCallback([]);
   const [currentTrack, setCurrentTrack] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState("00:00");
   const [duration, setDuration] = React.useState("00:00");
 
+  // When option context is changed
   React.useEffect(() => {
-    console.log("Play UseEffect(ctx)", ctx.playOption);
-    audioPlayer.current.pause();
-    setIsPlaying(false);
+    console.log("Play UseEffect / ctx:", ctx.playOption);
+    // Pause the audio if it is loaded already
+    if (audioPlayer.current.src) {
+      audioPlayer.current.pause();
+      setIsPlaying(false);
+    }
     const generatedTracks = trackGenerator(ctx.playOption);
-    console.log("generatedTracks", generatedTracks);
-    setTracks(generatedTracks);
+    // console.log("generatedTracks", generatedTracks);
+    setTracks(generatedTracks, (_prevTracks, newTracks) => {
+      console.log("Loaded Track number:", newTracks.length);
+      audioPlayer.current = new Audio(newTracks[currentTrack]);
+    });
   }, [ctx]);
 
   React.useEffect(() => {
-    console.log(
-      "Play useEffect(currentTrack and tracks)",
-      currentTrack,
-      tracks
-    );
-    audioPlayer.current = new Audio(tracks[currentTrack]);
-    // audioPlayer.current.addEventListener("loadedmetadata", onLoadedMetadata);
+    console.log("Play useEffect / currentTrack:", currentTrack);
+
+    if (currentTrack % 2 == 0) {
+      audioPlayer2.current = new Audio(tracks[currentTrack + 1]);
+      audioPlayer.current.addEventListener("loadedmetadata", onLoadedMetadata);
+      audioPlayer.current.addEventListener("ended", () => {
+        console.log("EVEN order audio ended");
+        if (currentTrack !== tracks.length - 1) {
+          console.log("READYSTATE",audioPlayer2.readyState);
+          audioPlayer2.current.play();
+        }
+        setCurrentTrack((currentTrack) => currentTrack + 1);
+      });
+    } else {
+      audioPlayer.current = new Audio(tracks[currentTrack + 1]);
+      audioPlayer2.current.addEventListener("loadedmetadata", onLoadedMetadata);
+      audioPlayer2.current.addEventListener("ended", () => {
+        console.log("ODD order audio ended");
+        if (currentTrack !== tracks.length - 1) {
+          audioPlayer.current.play();
+        }
+        setCurrentTrack((currentTrack) => currentTrack + 1);
+      });
+    }
+
     // audioPlayer.current.addEventListener("timeupdate", () => {
     //   setCurrentTime(audioPlayer.current.currentTime);
     // });
+  }, [currentTrack, tracks]);
 
-    audioPlayer.current.addEventListener("ended", () => {
-      console.log("audio ended");
-      audioPlayer.current = new Audio(tracks[currentTrack + 1]);
-      setCurrentTrack((currentTrack) => currentTrack + 1);
-    });
-
+  const onLoadedMetadata = () => {
+    console.log("onLoadedMetadata");
     if (currentTrack == tracks.length - 1) {
       // When you reach to the end of the track list, reset the current track to 0
       setIsPlaying(false);
       setCurrentTrack(0);
     } else if (currentTrack !== 0 && currentTrack !== tracks.length - 1) {
       // When you are in the middle of the track list, play the next track
-      audioPlayer.current.play();
+      if (currentTrack % 2 == 0) {
+        console.log("even order audio play");
+        audioPlayer.current.play();
+      } else {
+        console.log("odd order audio play");
+        audioPlayer2.current.play();
+      }
     }
-  }, [currentTrack, tracks]);
-
-  const onLoadedMetadata = () => {
-    console.log("onLoadedMetadata");
-    setDuration(audioPlayer.current.duration);
+    // setDuration(audioPlayer.current.duration);
   };
 
   const progressBarClickToNavigate = (ev) => {
@@ -119,6 +146,7 @@ const Play = () => {
         <Controls isPlaying={isPlaying} handleControl={handleControl} />
         {/* Audio player */}
         <audio ref={audioPlayer}></audio>
+        <audio ref={audioPlayer2}></audio>
       </div>
       <Footer></Footer>
     </div>

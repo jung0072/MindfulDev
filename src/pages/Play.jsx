@@ -18,29 +18,27 @@ import { useStateWithCallback } from "../hooks/useStateWithCallback";
 const Play = () => {
   // console.log("------Play.jsx-----");
   const ctx = React.useContext(PlayOptionContext);
-
+  const audioPlayer = React.useRef();
+  const audioPlayer2 = React.useRef();
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [tracks, setTracks] = useStateWithCallback([]);
   const [currentTrack, setCurrentTrack] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState("00:00");
   const [duration, setDuration] = React.useState("00:00");
 
-  let audioPlayer = new Audio();
-  let audioPlayer2 = new Audio();
-
   // When option context is changed
   React.useEffect(() => {
     console.log("Play UseEffect / ctx:", ctx.playOption);
     // Pause the audio if it is loaded already
-    if (audioPlayer?.src) {
-      audioPlayer.pause();
+    if (audioPlayer.current.src) {
+      audioPlayer.current.pause();
       setIsPlaying(false);
     }
     const generatedTracks = trackGenerator(ctx.playOption);
     // console.log("generatedTracks", generatedTracks);
     setTracks(generatedTracks, (_prevTracks, newTracks) => {
       console.log("Loaded Track number:", newTracks.length);
-      audioPlayer = new Audio(newTracks[currentTrack]);
+      audioPlayer.current = new Audio(newTracks[currentTrack]);
     });
   }, [ctx]);
 
@@ -48,30 +46,30 @@ const Play = () => {
     console.log("Play useEffect / currentTrack:", currentTrack);
 
     if (currentTrack % 2 == 0) {
-      audioPlayer2 = new Audio(tracks[currentTrack + 1]);
-      audioPlayer.addEventListener("loadedmetadata", onLoadedMetadata);
-      audioPlayer.addEventListener("ended", () => {
+      audioPlayer2.current = new Audio(tracks[currentTrack + 1]);
+      audioPlayer.current.addEventListener("loadedmetadata", onLoadedMetadata);
+      audioPlayer.current.addEventListener("ended", () => {
         console.log("EVEN order audio ended");
         if (currentTrack !== tracks.length - 1) {
-          console.log("READYSTATE", audioPlayer2.readyState);
-          audioPlayer2.play();
+          console.log("READYSTATE", audioPlayer2.current.readyState);
+          audioPlayer2.current.play();
         }
         setCurrentTrack((currentTrack) => currentTrack + 1);
       });
     } else {
-      audioPlayer = new Audio(tracks[currentTrack + 1]);
-      audioPlayer2.addEventListener("loadedmetadata", onLoadedMetadata);
-      audioPlayer2.addEventListener("ended", () => {
+      audioPlayer.current = new Audio(tracks[currentTrack + 1]);
+      audioPlayer2.current.addEventListener("loadedmetadata", onLoadedMetadata);
+      audioPlayer2.current.addEventListener("ended", () => {
         console.log("ODD order audio ended");
         if (currentTrack !== tracks.length - 1) {
-          audioPlayer.play();
+          audioPlayer.current.play();
         }
         setCurrentTrack((currentTrack) => currentTrack + 1);
       });
     }
 
-    // audioPlayer.addEventListener("timeupdate", () => {
-    //   setCurrentTime(audioPlayer.currentTime);
+    // audioPlayer.current.addEventListener("timeupdate", () => {
+    //   setCurrentTime(audioPlayer.current.currentTime);
     // });
   }, [currentTrack, tracks]);
 
@@ -85,20 +83,20 @@ const Play = () => {
       // When you are in the middle of the track list, play the next track
       if (currentTrack % 2 == 0) {
         console.log("even order audio play");
-        audioPlayer.play();
+        audioPlayer.current.play();
       } else {
         console.log("odd order audio play");
-        audioPlayer2.play();
+        audioPlayer2.current.play();
       }
     }
-    // setDuration(audioPlayer.duration);
+    // setDuration(audioPlayer.current.duration);
   };
 
   const progressBarClickToNavigate = (ev) => {
     const percentageOfClickedPosition =
       (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
       ev.target.clientWidth;
-    audioPlayer.currentTime = percentageOfClickedPosition * duration;
+    audioPlayer.current.currentTime = percentageOfClickedPosition * duration;
   };
 
   const handleControl = (ev) => {
@@ -106,16 +104,16 @@ const Play = () => {
     // console.log("handle control for button:", buttonID);
     switch (buttonID) {
       case "10sBack":
-        audioPlayer.currentTime -= 10;
+        audioPlayer.current.currentTime -= 10;
         break;
 
       case "play":
-        audioPlayer.play();
+        audioPlayer.current.play();
         setIsPlaying(true);
         break;
 
       case "pause":
-        audioPlayer.pause();
+        audioPlayer.current.pause();
         setIsPlaying(false);
         break;
 
@@ -146,7 +144,9 @@ const Play = () => {
         />
         {/* Control buttons */}
         <Controls isPlaying={isPlaying} handleControl={handleControl} />
-
+        {/* Audio player */}
+        <audio ref={audioPlayer}></audio>
+        <audio ref={audioPlayer2}></audio>
       </div>
       <Footer></Footer>
     </div>

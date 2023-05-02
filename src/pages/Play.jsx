@@ -21,7 +21,7 @@ const Play = () => {
   const oddTrackAudio = React.useRef();
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [tracks, setTracks] = useStateWithCallback([]);
-  const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
+  const [currentTrackNumber, setCurrentTrackNumber] = React.useState(-1);
   const [currentTime, setCurrentTime] = React.useState("00:00");
   const [duration, setDuration] = React.useState("00:00");
   const [isEvenTrackLoaded, setIsEvenTrackLoaded] = React.useState(false);
@@ -37,6 +37,8 @@ const Play = () => {
   }, []);
 
   // Play next track depending on whether current track is loaded and prev track is ended
+  // Use this hook only for playing next track automatically
+  // Don't use this hook for pause/play
   React.useEffect(() => {
     console.log(
       "Loaded/Ended States Got Changed \n",
@@ -47,38 +49,45 @@ const Play = () => {
       isOddTrackLoaded,
       didEvenTrackEnd
     );
+
+    // When the last track ended
+    if (
+      currentTrackNumber >= tracks.length &&
+      (didOddTrackEnd || didEvenTrackEnd)
+    ) {
+      // Reset the states
+      setIsEvenTrackLoaded(false);
+      setIsOddTrackLoaded(false);
+      setDidEvenTrackEnd(false);
+      setDidOddTrackEnd(false);
+      setCurrentTrackNumber(0);
+      setIsPlaying(false);
+      evenTrackAudio.current.src = tracks[0];
+    }
+
     if (isPlaying) {
       // Play the even track if it is loaded and odd track ended
       if (isEvenTrackLoaded && didOddTrackEnd) {
+        setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
         // Reset the states
         setIsEvenTrackLoaded(false);
         setDidOddTrackEnd(false);
+        evenTrackAudio.current.play();
+        // Start loading the next track
         if (currentTrackNumber < tracks.length - 1) {
-          // Start loading the next track
-          oddTrackAudio.current.src = tracks[currentTrackNumber + 1];
-          //
-          setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
-          evenTrackAudio.current.play();
-        } else {
-          evenTrackAudio.current.play();
-          setIsPlaying(false);
-          setCurrentTrackNumber(0);
+          oddTrackAudio.current.src = tracks[currentTrackNumber + 2];
         }
       }
       // Play the odd track if it is loaded and even track ended
       else if (isOddTrackLoaded && didEvenTrackEnd) {
+        setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
         // Reset the states
         setIsOddTrackLoaded(false);
         setDidEvenTrackEnd(false);
+        oddTrackAudio.current.play();
+        // Start loading the next track
         if (currentTrackNumber < tracks.length - 1) {
-          // Start loading the next track
-          evenTrackAudio.current.src = tracks[currentTrackNumber + 1];
-          setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
-          oddTrackAudio.current.play();
-        } else {
-          oddTrackAudio.current.play();
-          setIsPlaying(false);
-          setCurrentTrackNumber(0);
+          evenTrackAudio.current.src = tracks[currentTrackNumber + 2];
         }
       }
     }
@@ -93,11 +102,11 @@ const Play = () => {
       console.log("Loaded Track number:", newTracks.length);
       if (isPlaying) {
         // When the audio is playing, load the next track
-        // Currently playing track number is "currentTrackNumber - 1"
-        if ((currentTrackNumber - 1) % 2 === 0) {
-          oddTrackAudio.current.src = newTracks[currentTrackNumber];
+        // Currently playing track number is "currentTrackNumber"
+        if (currentTrackNumber % 2 === 0) {
+          oddTrackAudio.current.src = newTracks[currentTrackNumber + 1];
         } else {
-          evenTrackAudio.current.src = newTracks[currentTrackNumber];
+          evenTrackAudio.current.src = newTracks[currentTrackNumber + 1];
         }
       } else {
         // Load the first two tracks when the audio is not playing
@@ -155,19 +164,22 @@ const Play = () => {
 
       case "play":
         console.log("---PLAY button clicked");
-        if ((currentTrackNumber - 1) % 2 === 0) {
-          evenTrackAudio.current.play();
-        } else {
-          oddTrackAudio.current.play();
-        }
-        setIsPlaying(true);
-        if (currentTrackNumber === 0) {
+        if (currentTrackNumber === -1) {
           setDidOddTrackEnd(true);
+        } else {
+          if (currentTrackNumber % 2 === 0) {
+            evenTrackAudio.current.play();
+          } else {
+            oddTrackAudio.current.play();
+          }
         }
+
+        setIsPlaying(true);
+
         break;
 
       case "pause":
-        if ((currentTrackNumber - 1) % 2 === 0) {
+        if (currentTrackNumber % 2 === 0) {
           evenTrackAudio.current.pause();
         } else {
           oddTrackAudio.current.pause();

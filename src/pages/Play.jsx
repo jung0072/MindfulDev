@@ -88,17 +88,25 @@ const Play = () => {
   React.useEffect(() => {
     console.log("Play UseEffect / ctx:", ctx.playOption);
 
-    // Pause the audio if it is loaded already
-    if (evenTrackAudio.current.src) {
-      evenTrackAudio.current.pause();
-      setIsPlaying(false);
-    }
+    // // Pause the audio if it is loaded already
+    // if (evenTrackAudio.current.src) {
+    //   evenTrackAudio.current.pause();
+    //   setIsPlaying(false);
+    // }
 
     const generatedTracks = trackGenerator(ctx.playOption);
     setTracks(generatedTracks, (_prevTracks, newTracks) => {
       console.log("Loaded Track number:", newTracks.length);
-      evenTrackAudio.current.src = newTracks[currentTrackNumber];
-      oddTrackAudio.current.src = newTracks[currentTrackNumber + 1];
+      if (isPlaying) {
+        if ((currentTrackNumber -1) % 2 === 0) {
+          oddTrackAudio.current.src = newTracks[currentTrackNumber];
+        } else {
+          evenTrackAudio.current.src = newTracks[currentTrackNumber];
+        }
+      } else {
+        oddTrackAudio.current.src = newTracks[currentTrackNumber + 1];
+        evenTrackAudio.current.src = newTracks[currentTrackNumber];
+      }
     });
   }, [ctx]);
 

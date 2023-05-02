@@ -9,9 +9,10 @@ import seven from "./seven.wav";
 import eight from "./eight.wav";
 import nine from "./nine.wav";
 import ten from "./ten.wav";
+import mixdown from "./mixdown.wav";
 
 export const tracks = [
-  { title: "one", src: one },
+  { title: "one", src: mixdown },
   { title: "two", src: two },
   { title: "three", src: three },
   { title: "four", src: four },

@@ -60,9 +60,9 @@ const Play = () => {
           setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
           evenTrackAudio.current.play();
         } else {
+          evenTrackAudio.current.play();
           setIsPlaying(false);
           setCurrentTrackNumber(0);
-          evenTrackAudio.current.src = tracks[0];
         }
       }
       // Play the odd track if it is loaded and even track ended
@@ -76,9 +76,9 @@ const Play = () => {
           setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
           oddTrackAudio.current.play();
         } else {
+          oddTrackAudio.current.play();
           setIsPlaying(false);
           setCurrentTrackNumber(0);
-          evenTrackAudio.current.src = tracks[0];
         }
       }
     }
@@ -88,24 +88,21 @@ const Play = () => {
   React.useEffect(() => {
     console.log("Play UseEffect / ctx:", ctx.playOption);
 
-    // // Pause the audio if it is loaded already
-    // if (evenTrackAudio.current.src) {
-    //   evenTrackAudio.current.pause();
-    //   setIsPlaying(false);
-    // }
-
     const generatedTracks = trackGenerator(ctx.playOption);
     setTracks(generatedTracks, (_prevTracks, newTracks) => {
       console.log("Loaded Track number:", newTracks.length);
       if (isPlaying) {
-        if ((currentTrackNumber -1) % 2 === 0) {
+        // When the audio is playing, load the next track
+        // Currently playing track number is "currentTrackNumber - 1"
+        if ((currentTrackNumber - 1) % 2 === 0) {
           oddTrackAudio.current.src = newTracks[currentTrackNumber];
         } else {
           evenTrackAudio.current.src = newTracks[currentTrackNumber];
         }
       } else {
-        oddTrackAudio.current.src = newTracks[currentTrackNumber + 1];
-        evenTrackAudio.current.src = newTracks[currentTrackNumber];
+        // Load the first two tracks when the audio is not playing
+        oddTrackAudio.current.src = newTracks[1];
+        evenTrackAudio.current.src = newTracks[0];
       }
     });
   }, [ctx]);
@@ -158,13 +155,23 @@ const Play = () => {
 
       case "play":
         console.log("---PLAY button clicked");
-        evenTrackAudio.current.play();
+        if ((currentTrackNumber - 1) % 2 === 0) {
+          evenTrackAudio.current.play();
+        } else {
+          oddTrackAudio.current.play();
+        }
         setIsPlaying(true);
-        setDidOddTrackEnd(true);
+        if (currentTrackNumber === 0) {
+          setDidOddTrackEnd(true);
+        }
         break;
 
       case "pause":
-        evenTrackAudio.current.pause();
+        if ((currentTrackNumber - 1) % 2 === 0) {
+          evenTrackAudio.current.pause();
+        } else {
+          oddTrackAudio.current.pause();
+        }
         setIsPlaying(false);
         break;
 

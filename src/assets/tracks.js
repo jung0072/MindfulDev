@@ -12,7 +12,7 @@ import ten from "./ten.wav";
 import mixdown from "./mixdown.wav";
 
 export const tracks = [
-  { title: "one", src: mixdown },
+  { title: "one", src: one },
   { title: "two", src: two },
   { title: "three", src: three },
   { title: "four", src: four },

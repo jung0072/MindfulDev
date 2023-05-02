@@ -16,115 +16,121 @@ import trackGenerator from "../utils/trackGenerator";
 import { useStateWithCallback } from "../hooks/useStateWithCallback";
 
 const Play = () => {
-  console.log("------Play.jsx-----");
   const ctx = React.useContext(PlayOptionContext);
   const evenTrackAudio = React.useRef();
   const oddTrackAudio = React.useRef();
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [tracks, setTracks] = useStateWithCallback([]);
-  const [currentTrack, setCurrentTrack] = React.useState(0);
+  const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState("00:00");
   const [duration, setDuration] = React.useState("00:00");
-  // const [isEvenTrackLoaded, setIsEvenTrackLoaded] = React.useState(false);
-  // const [isOddTrackLoaded, setIsOddTrackLoaded] = React.useState(false);
-  const isEvenTrackLoaded = React.useRef(false);
-  const isOddTrackLoaded = React.useRef(false);
-  // console.log("isEvenTrackLoaded", isEvenTrackLoaded);
-  // console.log("isOddTrackLoaded", isOddTrackLoaded);
-  let stopWhileLoop = 0;
+  const [isEvenTrackLoaded, setIsEvenTrackLoaded] = React.useState(false);
+  const [isOddTrackLoaded, setIsOddTrackLoaded] = React.useState(false);
+  const [didEvenTrackEnd, setDidEvenTrackEnd] = React.useState(false);
+  const [didOddTrackEnd, setDidOddTrackEnd] = React.useState(false);
 
-  // When option context changes
+  console.log("--Play.jsx-----", currentTrackNumber);
+
+  // Add event listener to the audio elements
+  React.useEffect(() => {
+    trackAddEventListener();
+  }, []);
+
+  // Play next track depending on whether current track is loaded and prev track is ended
+  React.useEffect(() => {
+    console.log(
+      "Loaded/Ended States Got Changed \n",
+      "isEvenTrackLoaded/didOddTrackEnd:",
+      isEvenTrackLoaded,
+      didOddTrackEnd,
+      "isOddTrackLoaded/didEvenTrackEnd:",
+      isOddTrackLoaded,
+      didEvenTrackEnd
+    );
+    if (isPlaying) {
+      // Play the even track if it is loaded and odd track ended
+      if (isEvenTrackLoaded && didOddTrackEnd) {
+        // Reset the states
+        setIsEvenTrackLoaded(false);
+        setDidOddTrackEnd(false);
+        if (currentTrackNumber < tracks.length - 1) {
+          // Start loading the next track
+          oddTrackAudio.current.src = tracks[currentTrackNumber + 1];
+          //
+          setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
+          evenTrackAudio.current.play();
+        } else {
+          setIsPlaying(false);
+          setCurrentTrackNumber(0);
+          evenTrackAudio.current.src = tracks[0];
+        }
+      }
+      // Play the odd track if it is loaded and even track ended
+      else if (isOddTrackLoaded && didEvenTrackEnd) {
+        // Reset the states
+        setIsOddTrackLoaded(false);
+        setDidEvenTrackEnd(false);
+        if (currentTrackNumber < tracks.length - 1) {
+          // Start loading the next track
+          evenTrackAudio.current.src = tracks[currentTrackNumber + 1];
+          setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
+          oddTrackAudio.current.play();
+        } else {
+          setIsPlaying(false);
+          setCurrentTrackNumber(0);
+          evenTrackAudio.current.src = tracks[0];
+        }
+      }
+    }
+  }, [isEvenTrackLoaded, isOddTrackLoaded, didEvenTrackEnd, didOddTrackEnd]);
+
+  // Generate tracks when ctx.playOption changes
   React.useEffect(() => {
     console.log("Play UseEffect / ctx:", ctx.playOption);
+
     // Pause the audio if it is loaded already
     if (evenTrackAudio.current.src) {
       evenTrackAudio.current.pause();
       setIsPlaying(false);
     }
 
+    const generatedTracks = trackGenerator(ctx.playOption);
+    setTracks(generatedTracks, (_prevTracks, newTracks) => {
+      console.log("Loaded Track number:", newTracks.length);
+      evenTrackAudio.current.src = newTracks[currentTrackNumber];
+      oddTrackAudio.current.src = newTracks[currentTrackNumber + 1];
+    });
+  }, [ctx]);
+
+  // React.useEffect(() => {
+  //   console.log("Play useEffect / currentTrackNumber:", currentTrackNumber);
+  //   // evenTrackAudio.current.addEventListener("timeupdate", () => {
+  //   //   setCurrentTime(evenTrackAudio.current.currentTime);
+  //   // });
+  // }, [currentTrackNumber, tracks]);
+
+  const trackAddEventListener = () => {
     // EVEN TRACK Event Listener
     evenTrackAudio.current.addEventListener("loadedmetadata", () => {
       console.log("even track loaded");
-      isEvenTrackLoaded.current = true;
+      setIsEvenTrackLoaded(true);
     });
     evenTrackAudio.current.addEventListener("ended", () => {
-      console.log("isOddTrackLoaded", isOddTrackLoaded.current);
-      console.log("EVEN order audio ended");
-      evenTrackAudio.current.pause();
-
-      isEvenTrackLoaded.current = false;
-      evenTrackAudio.current.src = tracks[currentTrack + 1];
-      evenTrackAudio.current.addEventListener("loadedmetadata", () => {
-        console.log("even track loaded");
-        isEvenTrackLoaded.current = true;
-      });
-      evenTrackAudio.current.load();
-
-      while (!isOddTrackLoaded.current) {
-        if (stopWhileLoop > 1000) {
-          stopWhileLoop = 0;
-          break;
-        }
-        stopWhileLoop++;
-        console.log("waiting for odd track to be loaded");
-      }
-      if (isOddTrackLoaded) {
-        setCurrentTrack((currentTrack) => currentTrack + 1);
-        oddTrackAudio.current.play();
-      }
+      console.log("even track ended");
+      setDidEvenTrackEnd(true);
+      setDidOddTrackEnd(false);
     });
 
     // ODD TRACK Event Listener
     oddTrackAudio.current.addEventListener("loadedmetadata", () => {
       console.log("odd track loaded");
-      isOddTrackLoaded.current = true;
+      setIsOddTrackLoaded(true);
     });
     oddTrackAudio.current.addEventListener("ended", () => {
-      console.log("isEvenTrackLoaded", isEvenTrackLoaded.current);
-      console.log("ODD order audio ended");
-      evenTrackAudio.current.pause();
-
-      isOddTrackLoaded.current = false;
-      oddTrackAudio.current.src = tracks[currentTrack + 1];
-
-      oddTrackAudio.current.addEventListener("loadedmetadata", () => {
-        console.log("odd track loaded");
-        isOddTrackLoaded.current = true;
-      });
-
-      while (!isEvenTrackLoaded.current) {
-        if (stopWhileLoop > 1000) {
-          stopWhileLoop = 0;
-          break;
-        }
-        stopWhileLoop++;
-        console.log("waiting for odd track to be loaded");
-      }
-      if (isEvenTrackLoaded) {
-        setCurrentTrack((currentTrack) => currentTrack + 1);
-        evenTrackAudio.current.play();
-      }
+      console.log("odd track ended");
+      setDidOddTrackEnd(true);
+      setDidEvenTrackEnd(false);
     });
-
-    const generatedTracks = trackGenerator(ctx.playOption);
-    // console.log("generatedTracks", generatedTracks);
-    setTracks(generatedTracks, (_prevTracks, newTracks) => {
-      console.log("Loaded Track number:", newTracks.length);
-      evenTrackAudio.current.src = newTracks[currentTrack];
-      oddTrackAudio.current.src = newTracks[currentTrack + 1];
-    });
-  }, [ctx]);
-
-  // React.useEffect(() => {
-  //   console.log("Play useEffect / currentTrack:", currentTrack);
-  //   // evenTrackAudio.current.addEventListener("timeupdate", () => {
-  //   //   setCurrentTime(evenTrackAudio.current.currentTime);
-  //   // });
-  // }, [currentTrack, tracks]);
-
-  const onLoadedMetadata = () => {
-    console.log("onLoadedMetadata");
-    // setDuration(evenTrackAudio.current.duration);
   };
 
   const progressBarClickToNavigate = (ev) => {
@@ -143,8 +149,10 @@ const Play = () => {
         break;
 
       case "play":
+        console.log("---PLAY button clicked");
         evenTrackAudio.current.play();
         setIsPlaying(true);
+        setDidOddTrackEnd(true);
         break;
 
       case "pause":

@@ -38,7 +38,8 @@ const Play = () => {
 
   // Play next track depending on whether current track is loaded and prev track is ended
   // Use this hook only for playing next track automatically
-  // Don't use this hook for pause/play
+  // To start playing, set didOddTrackEnd to true
+  // To pause and resume, control audio elements directly
   React.useEffect(() => {
     console.log(
       "Loaded/Ended States Got Changed \n",
@@ -52,7 +53,7 @@ const Play = () => {
 
     // When the last track ended
     if (
-      currentTrackNumber >= tracks.length &&
+      currentTrackNumber >= tracks.length - 1 &&
       (didOddTrackEnd || didEvenTrackEnd)
     ) {
       // Reset the states
@@ -63,6 +64,7 @@ const Play = () => {
       setCurrentTrackNumber(0);
       setIsPlaying(false);
       evenTrackAudio.current.src = tracks[0];
+      oddTrackAudio.current.src = tracks[1];
     }
 
     if (isPlaying) {
@@ -165,6 +167,7 @@ const Play = () => {
       case "play":
         console.log("---PLAY button clicked");
         if (currentTrackNumber === -1) {
+          // To play the first track change the state didOddTrackEnd
           setDidOddTrackEnd(true);
         } else {
           if (currentTrackNumber % 2 === 0) {

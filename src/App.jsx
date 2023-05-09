@@ -3,7 +3,8 @@ import { Routes, Route } from "react-router-dom";
 
 // Components
 import Home from "./pages/Home";
-import Play from "./pages/Play";
+// import Play from "./pages/Play";
+import Play from "./pages/PlayWithAudioContext";
 import Setting from "./pages/Setting";
 
 // Context

@@ -25,6 +25,8 @@ const Play = () => {
     React.useState(0);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isFirstPlaying, setIsFirstPlaying] = React.useState(true);
+  const [currentTime, setCurrentTime] = React.useState("00:00");
+
   const [audioNodes, setAudioNodes] = React.useState([]);
   const [audioBuffers, setAudioBuffers] = React.useState([]);
   const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
@@ -62,6 +64,7 @@ const Play = () => {
       let node = audioContext.createBufferSource();
       node.buffer = audioBuffer;
       sum += audioBuffer.duration;
+      console.log("sum", sum);
       node.connect(audioContext.destination);
       return node;
     });
@@ -82,12 +85,26 @@ const Play = () => {
           console.log("Last Track ended");
           console.log(
             "Average delay per track:",
-            ((Date.now() - startingTime) / 1000 - totalDurationOfSourceNodes) /
-              (audioNodes.length - 1),
+            parseFloat(
+              ((Date.now() - startingTime) / 1000 -
+                totalDurationOfSourceNodes) /
+                (audioNodes.length - 1)
+            ).toFixed(5),
             "seconds"
           );
           setCurrentTrackNumber(0);
           setIsPlaying(false);
+          // Reload all audio files for the next play
+          const filesToLoad =
+            duration === "10mins"
+              ? audioFiles
+              : audioFiles.filter((_, i) => i % 2 === 0);
+          Promise.all(filesToLoad.map(loadAudioFile))
+            .then((audioBuffers) => {
+              setAudioBuffers(audioBuffers);
+              connectNodesToDestination(audioBuffers);
+            })
+            .catch(console.error);
         };
       }
     });
@@ -114,13 +131,33 @@ const Play = () => {
       audioNodes[currentTrackNumber].onended = null;
       audioNodes[currentTrackNumber].stop();
       // Increment the pausedAt by the current time
+      console.log("audioContext.currentTime", audioContext.currentTime);
       setPausedAt((prev) => prev + audioContext.currentTime);
+      timerForPausedState(true);
     } else {
       console.log("PLAY the track #", currentTrackNumber);
       startAudioPlayback();
     }
     setIsPlaying(!isPlaying);
   }
+
+  const [pausedDuration, setPausedDuration] = React.useState(0);
+let pausedTimerRef = React.useRef(null);
+
+function timerForPausedState(start) {
+  if (start) {
+    pausedTimerRef.current = setInterval(() => {
+      setPausedDuration((prev) => prev + 0.001);
+    }, 1);
+  } else {
+    console.log("clearInterval");
+    clearInterval(pausedTimerRef.current);
+    pausedTimerRef.current = null;
+  }
+}
+  useEffect(() => {
+    console.log("pausedDuration", pausedDuration);
+  }, [pausedDuration]);
 
   // Reset the pausedAt when the track changes
   useEffect(() => {
@@ -133,8 +170,10 @@ const Play = () => {
       audioNodes[0].start();
       setIsFirstPlaying(false);
     } else {
+      console.log("pausedDuration", pausedDuration);
       // For resuming, create a new source node, connect it to the destination,
       // and add an onended event listener
+      timerForPausedState(false);
       const pausedNode = audioContext.createBufferSource();
       pausedNode.buffer = audioBuffers[currentTrackNumber];
       pausedNode.connect(audioContext.destination);
@@ -158,6 +197,36 @@ const Play = () => {
     }
   }
 
+  const progressBarClickToNavigate = (ev) => {
+    const percentageOfClickedPosition =
+      (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
+      ev.target.clientWidth;
+    evenTrackAudio.current.currentTime = percentageOfClickedPosition * duration;
+  };
+
+  useEffect(() => {
+    console.log(audioContext.currentTime);
+  }, [audioContext.currentTime]);
+
+  const [elapsedTime, setElapsedTime] = React.useState(0);
+  const requestId = React.useRef();
+
+  useEffect(() => {
+    const updateElapsedTime = () => {
+      if (isPlaying) {
+        setElapsedTime(audioContext.currentTime - pausedDuration);
+      }
+      requestId.current = requestAnimationFrame(updateElapsedTime);
+    };
+
+    // start the loop
+    requestId.current = requestAnimationFrame(updateElapsedTime);
+
+    return () => {
+      cancelAnimationFrame(requestId.current);
+    };
+  }, [isPlaying, pausedDuration]);
+
   return (
     <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">
       <Header pathNameFirstPart="play"></Header>
@@ -173,11 +242,11 @@ const Play = () => {
         {/* Option buttons */}
         <OptionHandleBar />
         {/* Progress bar */}
-        {/* <ProgressBar
-          currentTime={currentTime}
-          duration={duration}
+        <ProgressBar
+          currentTime={elapsedTime}
+          duration={totalDurationOfSourceNodes}
           progressBarClickToNavigate={progressBarClickToNavigate}
-        /> */}
+        />
         {/* Control buttons */}
         <Controls isPlaying={isPlaying} handleControl={handleControl} />
         {/* Audio player */}

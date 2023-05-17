@@ -13,11 +13,20 @@ import { PlayOptionContext } from "../context/playOptionContext";
 
 const Play = () => {
   const ctx = React.useContext(PlayOptionContext);
-  const [duration, setDuration] = React.useState("10mins");
 
+  // Load audio files based on the ctx duration option
   useEffect(() => {
-    setDuration(ctx.playOption.duration);
     console.log("duration changed", ctx.playOption.duration);
+    const filesToLoad =
+      ctx.playOption.duration === "10mins"
+        ? audioFiles
+        : audioFiles.filter((_, i) => i % 2 === 0);
+    Promise.all(filesToLoad.map(loadAudioFile))
+      .then((audioBuffers) => {
+        setAudioBuffers(audioBuffers);
+        connectNodesToDestination(audioBuffers);
+      })
+      .catch(console.error);
   }, [ctx.playOption.duration]);
 
   let startingTime;
@@ -64,7 +73,6 @@ const Play = () => {
       let node = audioContext.createBufferSource();
       node.buffer = audioBuffer;
       sum += audioBuffer.duration;
-      console.log("sum", sum);
       node.connect(audioContext.destination);
       return node;
     });
@@ -72,6 +80,7 @@ const Play = () => {
     setTotalDurationOfSourceNodes(sum);
   }
 
+  // Add onEnded event listener to each source node
   useEffect(() => {
     audioNodes.forEach((node, index) => {
       if (index < audioNodes.length - 1) {
@@ -96,7 +105,7 @@ const Play = () => {
           setIsPlaying(false);
           // Reload all audio files for the next play
           const filesToLoad =
-            duration === "10mins"
+            ctx.playOption.duration === "10mins"
               ? audioFiles
               : audioFiles.filter((_, i) => i % 2 === 0);
           Promise.all(filesToLoad.map(loadAudioFile))
@@ -109,20 +118,6 @@ const Play = () => {
       }
     });
   }, [audioNodes]);
-
-  useEffect(() => {
-    // load all audio files, then play them in sequence
-    const filesToLoad =
-      duration === "10mins"
-        ? audioFiles
-        : audioFiles.filter((_, i) => i % 2 === 0);
-    Promise.all(filesToLoad.map(loadAudioFile))
-      .then((audioBuffers) => {
-        setAudioBuffers(audioBuffers);
-        connectNodesToDestination(audioBuffers);
-      })
-      .catch(console.error);
-  }, [duration]);
 
   function handleControl() {
     if (isPlaying) {
@@ -142,22 +137,22 @@ const Play = () => {
   }
 
   const [pausedDuration, setPausedDuration] = React.useState(0);
-let pausedTimerRef = React.useRef(null);
-
-function timerForPausedState(start) {
-  if (start) {
-    pausedTimerRef.current = setInterval(() => {
-      setPausedDuration((prev) => prev + 0.001);
-    }, 1);
-  } else {
-    console.log("clearInterval");
-    clearInterval(pausedTimerRef.current);
-    pausedTimerRef.current = null;
+  let pausedTimerRef = React.useRef(null);
+  function timerForPausedState(start) {
+    if (start) {
+      pausedTimerRef.current = setInterval(() => {
+        setPausedDuration((prev) => prev + 0.001);
+      }, 1);
+    } else {
+      console.log("clearInterval");
+      clearInterval(pausedTimerRef.current);
+      pausedTimerRef.current = null;
+    }
   }
-}
-  useEffect(() => {
-    console.log("pausedDuration", pausedDuration);
-  }, [pausedDuration]);
+
+  // useEffect(() => {
+  //   console.log("pausedDuration", pausedDuration);
+  // }, [pausedDuration]);
 
   // Reset the pausedAt when the track changes
   useEffect(() => {
@@ -183,6 +178,8 @@ function timerForPausedState(start) {
         setCurrentTrackNumber(currentTrackNumber + 1);
       };
       // Start the paused node at the pausedAt position
+      console.log("start from pausedAt", pausedAt);
+      console.log(pausedNode);
       pausedNode.start(0, pausedAt);
       // Update the old source node with the new source node
       setAudioNodes((prev) => {
@@ -201,7 +198,7 @@ function timerForPausedState(start) {
     const percentageOfClickedPosition =
       (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
       ev.target.clientWidth;
-    evenTrackAudio.current.currentTime = percentageOfClickedPosition * duration;
+    evenTrackAudio.current.currentTime = percentageOfClickedPosition * ctx.playOption.duration;
   };
 
   useEffect(() => {

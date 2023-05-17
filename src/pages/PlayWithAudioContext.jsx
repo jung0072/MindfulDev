@@ -126,7 +126,7 @@ const Play = () => {
       audioNodes[currentTrackNumber].onended = null;
       audioNodes[currentTrackNumber].stop();
       // Increment the pausedAt by the current time
-      console.log("audioContext.currentTime", audioContext.currentTime);
+      console.log("Increment pauseAt", pausedAt, "by", audioContext.currentTime);
       setPausedAt((prev) => prev + audioContext.currentTime);
       timerForPausedState(true);
     } else {
@@ -170,6 +170,7 @@ const Play = () => {
       // and add an onended event listener
       timerForPausedState(false);
       const pausedNode = audioContext.createBufferSource();
+      console.log("add buffer to paused node", audioBuffers[currentTrackNumber]);
       pausedNode.buffer = audioBuffers[currentTrackNumber];
       pausedNode.connect(audioContext.destination);
       pausedNode.onended = () => {
@@ -180,7 +181,7 @@ const Play = () => {
       // Start the paused node at the pausedAt position
       console.log("start from pausedAt", pausedAt);
       console.log(pausedNode);
-      pausedNode.start(0, pausedAt);
+      pausedNode.start();
       // Update the old source node with the new source node
       setAudioNodes((prev) => {
         return prev.map((node, index) => {
@@ -209,8 +210,10 @@ const Play = () => {
   const requestId = React.useRef();
 
   useEffect(() => {
+    console.log("requestAnimationFrame");
     const updateElapsedTime = () => {
       if (isPlaying) {
+        console.log("updateElapsedTime", audioContext.currentTime - pausedDuration);
         setElapsedTime(audioContext.currentTime - pausedDuration);
       }
       requestId.current = requestAnimationFrame(updateElapsedTime);

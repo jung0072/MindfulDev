@@ -29,6 +29,14 @@ const Play = () => {
       .catch(console.error);
   }, [ctx.playOption.duration]);
 
+  useEffect(() => {
+    const checkCurrentTime = () => {
+      setElapsedTime(audioContext.current.currentTime - pausedDuration);
+      setTimeout(checkCurrentTime, 10);
+    };
+    checkCurrentTime();
+  }, []);
+
   let startingTime;
   const [totalDurationOfSourceNodes, setTotalDurationOfSourceNodes] =
     React.useState(0);
@@ -41,28 +49,31 @@ const Play = () => {
   const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
   const [pausedAt, setPausedAt] = React.useState(0);
   const [pausedBuffer, setPausedBuffer] = React.useState(null);
-  const audioFiles = [
-    "src/assets/one.wav",
-    "src/assets/two.wav",
-    "src/assets/three.wav",
-    "src/assets/four.wav",
-    "src/assets/five.wav",
-    "src/assets/six.wav",
-    "src/assets/seven.wav",
-    "src/assets/eight.wav",
-    "src/assets/nine.wav",
-    "src/assets/ten.wav",
-  ];
+  // const audioFiles = [
+  //   "src/assets/one.wav",
+  //   "src/assets/two.wav",
+  //   "src/assets/three.wav",
+  //   "src/assets/four.wav",
+  //   "src/assets/five.wav",
+  //   "src/assets/six.wav",
+  //   "src/assets/seven.wav",
+  //   "src/assets/eight.wav",
+  //   "src/assets/nine.wav",
+  //   "src/assets/ten.wav",
+  // ];
 
-  // const audioFiles = ["src/assets/mixdown.wav"];
+  const audioFiles = ["src/assets/mixdown.wav"];
 
-  let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const audioContext = React.useRef(
+    new (window.AudioContext || window.webkitAudioContext)()
+  );
+  // when you need to access the audioContext, use audioContextRef.current
 
   // utility function to fetch and decode an audio file
   async function loadAudioFile(url) {
     const response = await fetch(url);
     const arrayBuffer = await response.arrayBuffer();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
     return audioBuffer;
   }
 
@@ -70,10 +81,10 @@ const Play = () => {
   function connectNodesToDestination(audioBuffers) {
     let sum = 0;
     let nodes = audioBuffers.map((audioBuffer) => {
-      let node = audioContext.createBufferSource();
+      let node = audioContext.current.createBufferSource();
       node.buffer = audioBuffer;
       sum += audioBuffer.duration;
-      node.connect(audioContext.destination);
+      node.connect(audioContext.current.destination);
       return node;
     });
     setAudioNodes(nodes);
@@ -121,32 +132,49 @@ const Play = () => {
 
   function handleControl() {
     if (isPlaying) {
-      console.log("PAUSE at track #", currentTrackNumber);
+      console.log("--- PAUSE at track #", currentTrackNumber);
+      console.log(
+        "audio context current time",
+        audioContext.current.currentTime
+      );
+
       // Remove the onended event listener and stop the current source node
       audioNodes[currentTrackNumber].onended = null;
       audioNodes[currentTrackNumber].stop();
       // Increment the pausedAt by the current time
-      console.log("Increment pauseAt", pausedAt, "by", audioContext.currentTime);
-      setPausedAt((prev) => prev + audioContext.currentTime);
+      console.log(
+        "Increment pauseAt",
+        pausedAt,
+        "by",
+        audioContext.current.currentTime - pausedDuration
+      );
+      console.log(audioContext.current.currentTime - pausedDuration);
+      setPausedAt(
+        (prev) => prev + audioContext.current.currentTime - pausedDuration
+      );
       timerForPausedState(true);
+      // console.log(
+      //   "audio context current time after stop",
+      //   audioContext.current.currentTime
+      // );
     } else {
-      console.log("PLAY the track #", currentTrackNumber);
+      // console.log(
+      //   "audio context current time after resume",
+      //   audioContext.current.currentTime
+      // );
+
+      console.log("--- PLAY the track #", currentTrackNumber);
       startAudioPlayback();
     }
     setIsPlaying(!isPlaying);
   }
 
-  const [pausedDuration, setPausedDuration] = React.useState(0);
   let pausedTimerRef = React.useRef(null);
   function timerForPausedState(start) {
     if (start) {
-      pausedTimerRef.current = setInterval(() => {
-        setPausedDuration((prev) => prev + 0.001);
-      }, 1);
+      pausedTimerRef.current = Date.now();
     } else {
-      console.log("clearInterval");
-      clearInterval(pausedTimerRef.current);
-      pausedTimerRef.current = null;
+      return (Date.now() - pausedTimerRef.current) / 1000;
     }
   }
 
@@ -154,34 +182,41 @@ const Play = () => {
   //   console.log("pausedDuration", pausedDuration);
   // }, [pausedDuration]);
 
-  // Reset the pausedAt when the track changes
-  useEffect(() => {
-    setPausedAt(0);
-  }, [currentTrackNumber]);
 
+  const [pausedDuration, setPausedDuration] = React.useState(0);
   function startAudioPlayback() {
     if (isFirstPlaying) {
       startingTime = Date.now();
       audioNodes[0].start();
       setIsFirstPlaying(false);
     } else {
-      console.log("pausedDuration", pausedDuration);
+      console.log(
+        "audio context current time",
+        audioContext.current.currentTime
+      );
       // For resuming, create a new source node, connect it to the destination,
       // and add an onended event listener
-      timerForPausedState(false);
-      const pausedNode = audioContext.createBufferSource();
-      console.log("add buffer to paused node", audioBuffers[currentTrackNumber]);
+      const newPausedDuration = timerForPausedState(false);
+      console.log("pausedDuration", newPausedDuration);
+      setPausedDuration(newPausedDuration);
+      const pausedNode = audioContext.current.createBufferSource();
+      // console.log(
+      //   "add buffer to paused node",
+      //   audioBuffers[currentTrackNumber]
+      // );
       pausedNode.buffer = audioBuffers[currentTrackNumber];
-      pausedNode.connect(audioContext.destination);
+      pausedNode.connect(audioContext.current.destination);
       pausedNode.onended = () => {
         console.log("track #", currentTrackNumber, "ended");
-        audioNodes[currentTrackNumber + 1].start(audioContext.currentTime);
+        audioNodes[currentTrackNumber + 1].start(
+          audioContext.current.currentTime
+        );
         setCurrentTrackNumber(currentTrackNumber + 1);
       };
       // Start the paused node at the pausedAt position
       console.log("start from pausedAt", pausedAt);
-      console.log(pausedNode);
-      pausedNode.start();
+      // console.log(pausedNode);
+      pausedNode.start(0, pausedAt);
       // Update the old source node with the new source node
       setAudioNodes((prev) => {
         return prev.map((node, index) => {
@@ -199,33 +234,37 @@ const Play = () => {
     const percentageOfClickedPosition =
       (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
       ev.target.clientWidth;
-    evenTrackAudio.current.currentTime = percentageOfClickedPosition * ctx.playOption.duration;
+    evenTrackAudio.current.currentTime =
+      percentageOfClickedPosition * ctx.playOption.duration;
   };
 
-  useEffect(() => {
-    console.log(audioContext.currentTime);
-  }, [audioContext.currentTime]);
+  // useEffect(() => {
+  //   setElapsedTime(audioContext.current.currentTime - pausedDuration);
+  // }, [audioContext.current.currentTime]);
 
   const [elapsedTime, setElapsedTime] = React.useState(0);
   const requestId = React.useRef();
 
-  useEffect(() => {
-    console.log("requestAnimationFrame");
-    const updateElapsedTime = () => {
-      if (isPlaying) {
-        console.log("updateElapsedTime", audioContext.currentTime - pausedDuration);
-        setElapsedTime(audioContext.currentTime - pausedDuration);
-      }
-      requestId.current = requestAnimationFrame(updateElapsedTime);
-    };
+  // useEffect(() => {
+  //   console.log("requestAnimationFrame");
+  //   const updateElapsedTime = () => {
+  //     if (isPlaying) {
+  //       console.log(
+  //         "updateElapsedTime",
+  //         audioContext.current.currentTime - pausedDuration
+  //       );
+  //       setElapsedTime(audioContext.current.currentTime - pausedDuration);
+  //     }
+  //     requestId.current = requestAnimationFrame(updateElapsedTime);
+  //   };
 
-    // start the loop
-    requestId.current = requestAnimationFrame(updateElapsedTime);
+  //   // start the loop
+  //   requestId.current = requestAnimationFrame(updateElapsedTime);
 
-    return () => {
-      cancelAnimationFrame(requestId.current);
-    };
-  }, [isPlaying, pausedDuration]);
+  //   return () => {
+  //     cancelAnimationFrame(requestId.current);
+  //   };
+  // }, [isPlaying, pausedDuration]);
 
   return (
     <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">

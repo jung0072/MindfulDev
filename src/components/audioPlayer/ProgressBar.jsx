@@ -3,6 +3,7 @@ import { formatTime } from "../../utils/formatTime";
 
 const ProgressBar = ({ currentTime, duration, progressBarClickToNavigate }) => {
   const progress = ((currentTime / duration) * 100).toFixed(1);
+  console.log(currentTime);
 
   return (
     <div className="mx-[33px]">

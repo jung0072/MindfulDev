@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 
 import Header from "../components/Header";
 import Footer from "../components/Footer";
@@ -39,24 +39,27 @@ const Play = () => {
   const [audioBuffers, setAudioBuffers] = React.useState([]);
   const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
   const [pausedAt, setPausedAt] = React.useState(0);
-  const [pausedBuffer, setPausedBuffer] = React.useState(null);
-  // const audioFiles = [
-  //   "src/assets/one.wav",
-  //   "src/assets/two.wav",
-  //   "src/assets/three.wav",
-  //   "src/assets/four.wav",
-  //   "src/assets/five.wav",
-  //   "src/assets/six.wav",
-  //   "src/assets/seven.wav",
-  //   "src/assets/eight.wav",
-  //   "src/assets/nine.wav",
-  //   "src/assets/ten.wav",
-  // ];
+  // const [totalDurationOfEndedNodes, setTotalDurationOfEndedNodes] =
+  //   React.useState(0);
+  const audioFiles = [
+    "src/assets/one.wav",
+    "src/assets/two.wav",
+    "src/assets/three.wav",
+    "src/assets/four.wav",
+    "src/assets/five.wav",
+    "src/assets/six.wav",
+    "src/assets/seven.wav",
+    "src/assets/eight.wav",
+    "src/assets/nine.wav",
+    "src/assets/ten.wav",
+  ];
 
-  const audioFiles = ["src/assets/mixdown.wav"];
+  // const audioFiles = ["src/assets/mixdown.wav"];
 
   const audioContext = React.useRef(
-    new (window.AudioContext || window.webkitAudioContext)()
+    new (window.AudioContext || window.webkitAudioContext)({
+      bufferSize: 16384,
+    })
   );
   // when you need to access the audioContext, use audioContextRef.current
 
@@ -82,14 +85,22 @@ const Play = () => {
     setTotalDurationOfSourceNodes(sum);
   }
 
+  const totalDurationOfEndedNodes = useRef(0);
   // Add onEnded event listener to each source node
   useEffect(() => {
     audioNodes.forEach((node, index) => {
       if (index < audioNodes.length - 1) {
-        node.onended = () => {
+        node.onended = async () => {
           console.log("Track #", index, "ended");
           audioNodes[index + 1].start(0);
           setCurrentTrackNumber(index + 1);
+          setPausedAt(0);
+          totalDurationOfEndedNodes.current += node.buffer.duration;
+          // async function changeTotalDuration() {
+          //   console.log("changeTotalDuration");
+          //   setTotalDurationOfEndedNodes((prev) => prev + node.buffer.duration);
+          // }
+          // await changeTotalDuration();
         };
       } else {
         node.onended = () => {
@@ -104,7 +115,9 @@ const Play = () => {
             "seconds"
           );
           setCurrentTrackNumber(0);
+          setPausedAt(0);
           setIsPlaying(false);
+          setTotalDurationOfEndedNodes(0);
           // Reload all audio files for the next play
           const filesToLoad =
             ctx.playOption.duration === "10mins"
@@ -133,28 +146,16 @@ const Play = () => {
       audioNodes[currentTrackNumber].onended = null;
       audioNodes[currentTrackNumber].stop();
       // Increment the pausedAt by the current time
-      console.log(
-        "Increment pauseAt",
-        pausedAt,
-        "by",
-        elapsedTimeOfEntireTrack / 1000
-      );
       pauseElapsedTimeOfEntireTrack();
-
-      console.log(elapsedTimeOfEntireTrack / 1000);
-      setPausedAt((prev) => prev + elapsedTimeOfEntireTrack / 1000);
-      // console.log(
-      //   "audio context current time after stop",
-      //   elapsedTimeOfEntireTrack / 1000
-      // );
+      const calculatePausedAt = (elapsedTimeOfEntireTrack) => {
+        return elapsedTimeOfEntireTrack / 1000 - totalDurationOfEndedNodes > 0
+          ? elapsedTimeOfEntireTrack / 1000 - totalDurationOfEndedNodes
+          : 0;
+      };
+      setPausedAt(calculatePausedAt(elapsedTimeOfEntireTrack));
     } else {
-      // console.log(
-      //   "audio context current time after resume",
-      //   elapsedTimeOfEntireTrack / 1000
-      // );
       startElapsedTimeOfEntireTrack();
 
-      console.log("--- PLAY the track #", currentTrackNumber);
       startAudioPlayback();
     }
     setIsPlaying(!isPlaying);
@@ -168,8 +169,19 @@ const Play = () => {
   function startElapsedTimeOfEntireTrack() {
     console.log("startElapsedTimeOfEntireTrack");
     const checkCurrentTime = () => {
-      console.log("checkCurrentTime");
-      setElapsedTimeOfEntireTrack((prev) => prev + 10);
+      console.log(
+        "totalDurationOfEndedNodes",
+        totalDurationOfEndedNodes.current, 
+        "elapsedTimeOfEntireTrack",
+        elapsedTimeOfEntireTrack / 1000
+      );
+      if (elapsedTimeOfEntireTrack / 1000 < totalDurationOfEndedNodes.current) {
+        console.log("callibrate");
+        setElapsedTimeOfEntireTrack(totalDurationOfEndedNodes.current * 1000);
+      } else {
+        console.log("increment");
+        setElapsedTimeOfEntireTrack((prev) => prev + 10);
+      }
       elapsedTimeTimeout.current = setTimeout(checkCurrentTime, 10);
     };
     checkCurrentTime();
@@ -180,10 +192,6 @@ const Play = () => {
     clearTimeout(elapsedTimeTimeout.current);
   }
 
-  // useEffect(() => {
-  //   console.log("pausedDuration", pausedDuration);
-  // }, [pausedDuration]);
-
   const [pausedDuration, setPausedDuration] = React.useState(0);
   function startAudioPlayback() {
     if (isFirstPlaying) {
@@ -192,29 +200,33 @@ const Play = () => {
       setIsFirstPlaying(false);
     } else {
       console.log(
-        "audio context current time",
+        "--- PLAY the track #",
+        currentTrackNumber,
+        "\n",
+        ">> Elapsed Time of Entire Track:",
         elapsedTimeOfEntireTrack / 1000
       );
+
       // For resuming, create a new source node, connect it to the destination,
       // and add an onended event listener
       const pausedNode = audioContext.current.createBufferSource();
-      // console.log(
-      //   "add buffer to paused node",
-      //   audioBuffers[currentTrackNumber]
-      // );
       pausedNode.buffer = audioBuffers[currentTrackNumber];
       pausedNode.connect(audioContext.current.destination);
       pausedNode.onended = () => {
         console.log("track #", currentTrackNumber, "ended");
-        audioNodes[currentTrackNumber + 1].start(
-          elapsedTimeOfEntireTrack / 1000
-        );
+        audioNodes[currentTrackNumber + 1].start(0);
         setCurrentTrackNumber(currentTrackNumber + 1);
+        setPausedAt(0);
+        setElapsedTimeOfEntireTrack(
+          (totalDurationOfEndedNodes + pausedNode.buffer.duration) * 1000
+        );
+        setTotalDurationOfEndedNodes(
+          (prev) => prev + pausedNode.buffer.duration
+        );
       };
       // Start the paused node at the pausedAt position
-      console.log("start from pausedAt", elapsedTimeOfEntireTrack / 1000);
-      // console.log(pausedNode);
-      pausedNode.start(0, elapsedTimeOfEntireTrack / 1000);
+      console.log("start from pausedAt", pausedAt);
+      pausedNode.start(0, pausedAt);
       // Update the old source node with the new source node
       setAudioNodes((prev) => {
         return prev.map((node, index) => {
@@ -236,34 +248,6 @@ const Play = () => {
       percentageOfClickedPosition * ctx.playOption.duration;
   };
 
-  // useEffect(() => {
-  //   setElapsedTime(elapsedTimeOfEntireTrack / 1000 );
-  // }, [elapsedTimeOfEntireTrack / 1000]);
-
-  const [elapsedTime, setElapsedTime] = React.useState(0);
-  const requestId = React.useRef();
-
-  // useEffect(() => {
-  //   console.log("requestAnimationFrame");
-  //   const updateElapsedTime = () => {
-  //     if (isPlaying) {
-  //       console.log(
-  //         "updateElapsedTime",
-  //         elapsedTimeOfEntireTrack / 1000
-  //       );
-  //       setElapsedTime(elapsedTimeOfEntireTrack / 1000 );
-  //     }
-  //     requestId.current = requestAnimationFrame(updateElapsedTime);
-  //   };
-
-  //   // start the loop
-  //   requestId.current = requestAnimationFrame(updateElapsedTime);
-
-  //   return () => {
-  //     cancelAnimationFrame(requestId.current);
-  //   };
-  // }, [isPlaying, pausedDuration]);
-
   return (
     <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">
       <Header pathNameFirstPart="play"></Header>
@@ -280,7 +264,7 @@ const Play = () => {
         <OptionHandleBar />
         {/* Progress bar */}
         <ProgressBar
-          currentTime={elapsedTime}
+          currentTime={elapsedTimeOfEntireTrack / 1000}
           duration={totalDurationOfSourceNodes}
           progressBarClickToNavigate={progressBarClickToNavigate}
         />

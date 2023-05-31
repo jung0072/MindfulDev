@@ -91,6 +91,7 @@ const Play = () => {
       } else {
         // Last track
         node.onended = () => {
+          clearInterval(interval.current);
           console.log("Last Track ended");
           console.log(
             "Average delay per track:",
@@ -189,7 +190,7 @@ const Play = () => {
   // pausedDuration = DateTime.now() - DateTimeAtPaused
   // currentTimeOfEntireTrack = audioContext.currentTime - pausedDuration
   // currentTimeOfCurrentTrack = currentTimeOfEntireTrack - totalDurationOfEndedNodes
-  
+
   const interval = useRef();
   const DateTimeAtPaused = useRef(0);
   const pause = () => {
@@ -212,15 +213,9 @@ const Play = () => {
 
   const startDisplayingCurrentTime = () => {
     interval.current = setInterval(() => {
-      // console.log("currentTime", audioContext.current.currentTime);
-      console.log("pausedDuration", pausedDuration.current);
       setCurrentTime(audioContext.current.currentTime - pausedDuration.current);
     }, 100);
   };
-
-  useEffect(() => {
-    console.log("currentTime", audioContext.current.currentTime);
-  }, [audioContext.current.currentTime]);
 
   return (
     <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">

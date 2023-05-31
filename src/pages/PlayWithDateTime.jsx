@@ -20,6 +20,7 @@ const Play = () => {
   const [totalDurationOfSourceNodes, setTotalDurationOfSourceNodes] =
     React.useState(0);
   const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
+  const [currentTime, setCurrentTime] = React.useState(0);
   const audioContext = React.useRef(
     new (window.AudioContext || window.webkitAudioContext)({
       bufferSize: 16384,
@@ -152,13 +153,14 @@ const Play = () => {
         "audioContext",
         audioContext.current.currentTime,
         "\npausedDuration",
-        pausedDuration.current / 1000,
+        pausedDuration.current,
         "\ntotalDurationOfEndedNodes",
         totalDurationOfEndedNodes.current
       );
+      // pauseAt is for the timestamp where the CURRENT track is paused
       const pausedAt =
         audioContext.current.currentTime -
-        pausedDuration.current / 1000 -
+        pausedDuration.current -
         totalDurationOfEndedNodes.current;
       console.log("pausedAt", pausedAt);
       pausedNode.start(0, pausedAt);
@@ -187,26 +189,38 @@ const Play = () => {
   // pausedDuration = DateTime.now() - DateTimeAtPaused
   // currentTimeOfEntireTrack = audioContext.currentTime - pausedDuration
   // currentTimeOfCurrentTrack = currentTimeOfEntireTrack - totalDurationOfEndedNodes
-
+  
+  const interval = useRef();
   const DateTimeAtPaused = useRef(0);
   const pause = () => {
+    console.log("PAUSE");
     audioNodes[currentTrackNumber].onended = null;
     audioNodes[currentTrackNumber].stop();
     DateTimeAtPaused.current = Date.now();
+    clearInterval(interval.current);
   };
 
   const pausedDuration = useRef(0);
   const resume = () => {
-    console.log("paused duration previous:", pausedDuration.current / 1000);
-    console.log("paused duration:", Date.now() - DateTimeAtPaused.current);
     if (DateTimeAtPaused.current != 0) {
-      pausedDuration.current += Date.now() - DateTimeAtPaused.current;
+      pausedDuration.current += (Date.now() - DateTimeAtPaused.current) / 1000;
     }
-    console.log("paused duration:", pausedDuration.current / 1000);
-
     startAudioPlayback();
+    startDisplayingCurrentTime();
     DateTimeAtPaused.current = 0;
   };
+
+  const startDisplayingCurrentTime = () => {
+    interval.current = setInterval(() => {
+      // console.log("currentTime", audioContext.current.currentTime);
+      console.log("pausedDuration", pausedDuration.current);
+      setCurrentTime(audioContext.current.currentTime - pausedDuration.current);
+    }, 100);
+  };
+
+  useEffect(() => {
+    console.log("currentTime", audioContext.current.currentTime);
+  }, [audioContext.current.currentTime]);
 
   return (
     <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">
@@ -224,7 +238,7 @@ const Play = () => {
         <OptionHandleBar />
         {/* Progress bar */}
         <ProgressBar
-          currentTime={1000}
+          currentTime={currentTime}
           duration={totalDurationOfSourceNodes}
           progressBarClickToNavigate={progressBarClickToNavigate}
         />

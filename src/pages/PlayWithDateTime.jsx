@@ -151,9 +151,9 @@ const Play = () => {
       console.log(
         "audioContext",
         audioContext.current.currentTime,
-        "pausedDuration",
+        "\npausedDuration",
         pausedDuration.current / 1000,
-        "totalDurationOfEndedNodes",
+        "\ntotalDurationOfEndedNodes",
         totalDurationOfEndedNodes.current
       );
       const pausedAt =
@@ -197,7 +197,13 @@ const Play = () => {
 
   const pausedDuration = useRef(0);
   const resume = () => {
-    pausedDuration.current += Date.now() - DateTimeAtPaused.current;
+    console.log("paused duration previous:", pausedDuration.current / 1000);
+    console.log("paused duration:", Date.now() - DateTimeAtPaused.current);
+    if (DateTimeAtPaused.current != 0) {
+      pausedDuration.current += Date.now() - DateTimeAtPaused.current;
+    }
+    console.log("paused duration:", pausedDuration.current / 1000);
+
     startAudioPlayback();
     DateTimeAtPaused.current = 0;
   };

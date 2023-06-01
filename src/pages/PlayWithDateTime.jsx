@@ -32,11 +32,11 @@ const Play = () => {
     "src/assets/three.wav",
     "src/assets/four.wav",
     "src/assets/five.wav",
-    "src/assets/six.wav",
-    "src/assets/seven.wav",
-    "src/assets/eight.wav",
-    "src/assets/nine.wav",
-    "src/assets/ten.wav",
+    // "src/assets/six.wav",
+    // "src/assets/seven.wav",
+    // "src/assets/eight.wav",
+    // "src/assets/nine.wav",
+    // "src/assets/ten.wav",
   ];
   // const audioFiles = ["src/assets/mixdown.wav"];
 
@@ -90,18 +90,29 @@ const Play = () => {
         };
       } else {
         // Last track
-        node.onended = () => {
+        node.onended = async () => {
           clearInterval(interval.current);
-          console.log("Last Track ended");
           console.log(
             "Average delay per track:",
             parseFloat(
-              ((Date.now() - startingTime) / 1000 -
+              (audioContext.current.currentTime -
+                pausedDuration.current -
                 totalDurationOfSourceNodes) /
                 (audioNodes.length - 1)
             ).toFixed(5),
             "seconds"
           );
+
+          pausedDuration.current = 0;
+          audioContext.current.close();
+          audioContext.current = new (window.AudioContext ||
+            window.webkitAudioContext)({
+            bufferSize: 16384,
+          });
+          DateTimeAtPaused.current = Date.now();
+
+          setCurrentTime(0);
+          console.log("Last Track ended");
           setCurrentTrackNumber(0);
           setIsPlaying(false);
           totalDurationOfEndedNodes.current = 0;
@@ -164,7 +175,11 @@ const Play = () => {
         pausedDuration.current -
         totalDurationOfEndedNodes.current;
       console.log("pausedAt", pausedAt);
-      pausedNode.start(0, pausedAt);
+      if (pausedAt < 0) {
+        pausedNode.start(0);
+      } else {
+        pausedNode.start(0, pausedAt);
+      }
       // Update the old source node with the new source node
       setAudioNodes((prev) => {
         return prev.map((node, index) => {
@@ -214,7 +229,7 @@ const Play = () => {
   const startDisplayingCurrentTime = () => {
     interval.current = setInterval(() => {
       setCurrentTime(audioContext.current.currentTime - pausedDuration.current);
-    }, 100);
+    }, 10);
   };
 
   return (

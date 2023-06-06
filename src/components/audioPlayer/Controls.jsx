@@ -40,7 +40,7 @@ const Controls = (props) => {
         <div
           className=" hover:cursor-pointer"
           id="pause"
-          onClick={props.handleControl}>
+          onClick={props.isLoading ? null : props.handleControl}>
           <svg
             width="80"
             height="80"

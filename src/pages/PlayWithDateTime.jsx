@@ -15,17 +15,23 @@ const Play = () => {
   const ctx = React.useContext(PlayOptionContext);
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isFirstPlaying, setIsFirstPlaying] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(true);
   const [audioNodes, setAudioNodes] = React.useState([]);
   const [audioBuffers, setAudioBuffers] = React.useState([]);
   const [totalDurationOfSourceNodes, setTotalDurationOfSourceNodes] =
     React.useState(0);
+  const totalDurationOfEndedNodes = useRef(0);
   const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
   const [currentTime, setCurrentTime] = React.useState(0);
+  const interval = useRef();
+  const DateTimeAtPaused = useRef(0);
+  const pausedDuration = useRef(0);
   const audioContext = React.useRef(
     new (window.AudioContext || window.webkitAudioContext)({
-      bufferSize: 16384,
+      bufferSize: 512,
     })
   );
+
   const audioFiles = [
     "src/assets/one.wav",
     "src/assets/two.wav",
@@ -37,8 +43,8 @@ const Play = () => {
     // "src/assets/eight.wav",
     // "src/assets/nine.wav",
     // "src/assets/ten.wav",
+    // "src/assets/mixdown.wav",
   ];
-  // const audioFiles = ["src/assets/mixdown.wav"];
 
   // Load audio files based on the ctx duration option
   useEffect(() => {
@@ -51,6 +57,7 @@ const Play = () => {
       .then((audioBuffers) => {
         setAudioBuffers(audioBuffers);
         connectNodesToDestination(audioBuffers);
+        setIsLoading(false);
       })
       .catch(console.error);
   }, [ctx.playOption.duration]);
@@ -78,136 +85,90 @@ const Play = () => {
   }
 
   // Add an onEnded event listener to each source node
-  const totalDurationOfEndedNodes = useRef(0);
   useEffect(() => {
-    audioNodes.forEach((node, index) => {
-      if (index < audioNodes.length - 1) {
-        node.onended = async () => {
-          console.log("Track #", index, "ended");
-          audioNodes[index + 1].start(0);
-          setCurrentTrackNumber(index + 1);
-          totalDurationOfEndedNodes.current += node.buffer.duration;
-        };
-      } else {
-        // Last track
-        node.onended = async () => {
-          clearInterval(interval.current);
-          console.log(
-            "Average delay per track:",
-            parseFloat(
-              (audioContext.current.currentTime -
-                pausedDuration.current -
-                totalDurationOfSourceNodes) /
-                (audioNodes.length - 1)
-            ).toFixed(5),
-            "seconds"
-          );
-
-          pausedDuration.current = 0;
-          audioContext.current.close();
-          audioContext.current = new (window.AudioContext ||
-            window.webkitAudioContext)({
-            bufferSize: 16384,
-          });
-          DateTimeAtPaused.current = Date.now();
-
-          setCurrentTime(0);
-          console.log("Last Track ended");
-          setCurrentTrackNumber(0);
-          setIsPlaying(false);
-          totalDurationOfEndedNodes.current = 0;
-          // Reload all audio files for the next play
-          const filesToLoad =
-            ctx.playOption.duration === "10mins"
-              ? audioFiles
-              : audioFiles.filter((_, i) => i % 2 === 0);
-          Promise.all(filesToLoad.map(loadAudioFile))
-            .then((audioBuffers) => {
-              setAudioBuffers(audioBuffers);
-              connectNodesToDestination(audioBuffers);
-            })
-            .catch(console.error);
-        };
-      }
-    });
+    if (isFirstPlaying) {
+      audioNodes.forEach((node, index) => {
+        addOnEndedEventListener(node, index);
+      });
+    } else {
+      // add onEnded event listener only to the recreated node
+      addOnEndedEventListener(
+        audioNodes[currentTrackNumber],
+        currentTrackNumber
+      );
+    }
   }, [audioNodes]);
 
+  function addOnEndedEventListener(node, index) {
+    console.log("Track #", index, "add onended event listener");
+    if (index < audioNodes.length - 1) {
+      node.onended = async () => {
+        console.log("Track #", index, "ended");
+        audioNodes[index + 1].start(0);
+        setCurrentTrackNumber(index + 1);
+        totalDurationOfEndedNodes.current += node.buffer.duration;
+      };
+    } else {
+      // Last track
+      node.onended = async () => {
+        setIsLoading(true);
+        clearInterval(interval.current);
+        console.log(
+          "Average delay per track:",
+          parseFloat(
+            (audioContext.current.currentTime -
+              pausedDuration.current -
+              totalDurationOfSourceNodes) /
+              (audioNodes.length - 1)
+          ).toFixed(5),
+          "seconds"
+        );
+        pausedDuration.current = 0;
+        audioContext.current.close();
+        audioContext.current = new (window.AudioContext ||
+          window.webkitAudioContext)({
+          bufferSize: 512,
+        });
+        DateTimeAtPaused.current = Date.now();
+        setIsFirstPlaying(true);
+
+        setCurrentTime(0);
+        console.log("Last Track ended");
+        setCurrentTrackNumber(0);
+        setIsPlaying(false);
+        totalDurationOfEndedNodes.current = 0;
+        // Reload all audio files for the next play
+        const filesToLoad =
+          ctx.playOption.duration === "10mins"
+            ? audioFiles
+            : audioFiles.filter((_, i) => i % 2 === 0);
+        Promise.all(filesToLoad.map(loadAudioFile))
+          .then((audioBuffers) => {
+            setAudioBuffers(audioBuffers);
+            connectNodesToDestination(audioBuffers);
+            setIsLoading(false);
+          })
+          .catch(console.error);
+      };
+    }
+  }
+
+  // Handle play/pause button
   function handleControl() {
     if (isPlaying) {
+      setIsPlaying(false);
       pause();
     } else {
+      setIsPlaying(true);
       resume();
     }
-    setIsPlaying(!isPlaying);
   }
-
-  function startAudioPlayback() {
-    if (isFirstPlaying) {
-      audioNodes[0].start();
-      setIsFirstPlaying(false);
-    } else {
-      console.log("--- PLAY the track #", currentTrackNumber);
-      console.log("audioContext currentTime", audioContext.current.currentTime);
-      // For resuming, create a new source node, connect it to the destination,
-      // and add an onended event listener
-      const pausedNode = audioContext.current.createBufferSource();
-      pausedNode.buffer = audioBuffers[currentTrackNumber];
-      pausedNode.connect(audioContext.current.destination);
-      pausedNode.onended = () => {
-        console.log("track #", currentTrackNumber, "ended");
-        audioNodes[currentTrackNumber + 1].start(0);
-        setCurrentTrackNumber(currentTrackNumber + 1);
-        totalDurationOfEndedNodes.current += pausedNode.buffer.duration;
-      };
-      // Start the paused node at the pausedAt position
-
-      console.log(
-        "audioContext",
-        audioContext.current.currentTime,
-        "\npausedDuration",
-        pausedDuration.current,
-        "\ntotalDurationOfEndedNodes",
-        totalDurationOfEndedNodes.current
-      );
-      // pauseAt is for the timestamp where the CURRENT track is paused
-      const pausedAt =
-        audioContext.current.currentTime -
-        pausedDuration.current -
-        totalDurationOfEndedNodes.current;
-      console.log("pausedAt", pausedAt);
-      if (pausedAt < 0) {
-        pausedNode.start(0);
-      } else {
-        pausedNode.start(0, pausedAt);
-      }
-      // Update the old source node with the new source node
-      setAudioNodes((prev) => {
-        return prev.map((node, index) => {
-          if (index === currentTrackNumber) {
-            return pausedNode;
-          } else {
-            return node;
-          }
-        });
-      });
-    }
-  }
-
-  const progressBarClickToNavigate = (ev) => {
-    const percentageOfClickedPosition =
-      (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
-      ev.target.clientWidth;
-    evenTrackAudio.current.currentTime =
-      percentageOfClickedPosition * ctx.playOption.duration;
-  };
 
   // For controlling the audio playback, we will use only one variable: pausedDuration
   // pausedDuration = DateTime.now() - DateTimeAtPaused
   // currentTimeOfEntireTrack = audioContext.currentTime - pausedDuration
   // currentTimeOfCurrentTrack = currentTimeOfEntireTrack - totalDurationOfEndedNodes
 
-  const interval = useRef();
-  const DateTimeAtPaused = useRef(0);
   const pause = () => {
     console.log("PAUSE");
     audioNodes[currentTrackNumber].onended = null;
@@ -216,7 +177,6 @@ const Play = () => {
     clearInterval(interval.current);
   };
 
-  const pausedDuration = useRef(0);
   const resume = () => {
     if (DateTimeAtPaused.current != 0) {
       pausedDuration.current += (Date.now() - DateTimeAtPaused.current) / 1000;
@@ -226,10 +186,60 @@ const Play = () => {
     DateTimeAtPaused.current = 0;
   };
 
+  function startAudioPlayback() {
+    if (isFirstPlaying) {
+      audioNodes[0].start();
+      setIsFirstPlaying(false);
+    } else {
+      console.log("--- PLAY the track #", currentTrackNumber);
+      // For resuming, create a new source node, connect it to the destination
+      const pausedNode = audioContext.current.createBufferSource();
+      pausedNode.buffer = audioBuffers[currentTrackNumber];
+      pausedNode.connect(audioContext.current.destination);
+      setAudioNodes((prev) => {
+        return prev.map((node, index) => {
+          if (index === currentTrackNumber) {
+            return pausedNode;
+          } else {
+            return node;
+          }
+        });
+      });
+      console.log(
+        "audioContext",
+        audioContext.current.currentTime,
+        "\npausedDuration",
+        pausedDuration.current,
+        "\ntotalDurationOfEndedNodes",
+        totalDurationOfEndedNodes.current
+      );
+      // pauseAt is for the timestamp where the CURRENT track is paused
+      let pausedAt =
+        audioContext.current.currentTime -
+        pausedDuration.current -
+        totalDurationOfEndedNodes.current;
+      if (pausedAt < 0) {
+        pausedAt = 0;
+      }
+      // Use the pausedNode to start the playback since setAudioNodes is async
+      pausedNode.start(0, pausedAt);
+    }
+  }
+
   const startDisplayingCurrentTime = () => {
-    interval.current = setInterval(() => {
-      setCurrentTime(audioContext.current.currentTime - pausedDuration.current);
-    }, 10);
+    // console.log("create a new interval");
+    // clearInterval(interval.current);
+    // interval.current = setInterval(() => {
+    //   setCurrentTime(audioContext.current.currentTime - pausedDuration.current);
+    // }, 100);
+  };
+
+  const progressBarClickToNavigate = (ev) => {
+    const percentageOfClickedPosition =
+      (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
+      ev.target.clientWidth;
+    evenTrackAudio.current.currentTime =
+      percentageOfClickedPosition * ctx.playOption.duration;
   };
 
   return (
@@ -253,7 +263,11 @@ const Play = () => {
           progressBarClickToNavigate={progressBarClickToNavigate}
         />
         {/* Control buttons */}
-        <Controls isPlaying={isPlaying} handleControl={handleControl} />
+        <Controls
+          isPlaying={isPlaying}
+          handleControl={handleControl}
+          isLoading={isLoading}
+        />
         {/* Audio player */}
         {/* <audio ref={audioTrack}></audio> */}
       </div>

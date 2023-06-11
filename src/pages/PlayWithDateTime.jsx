@@ -22,7 +22,6 @@ const Play = () => {
     React.useState(0);
   const totalDurationOfEndedNodes = useRef(0);
   const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
-  const [currentTime, setCurrentTime] = React.useState(0);
   const interval = useRef();
   const DateTimeAtPaused = useRef(0);
   const pausedDuration = useRef(0);
@@ -38,11 +37,11 @@ const Play = () => {
     "src/assets/three.wav",
     "src/assets/four.wav",
     "src/assets/five.wav",
-    // "src/assets/six.wav",
-    // "src/assets/seven.wav",
-    // "src/assets/eight.wav",
-    // "src/assets/nine.wav",
-    // "src/assets/ten.wav",
+    "src/assets/six.wav",
+    "src/assets/seven.wav",
+    "src/assets/eight.wav",
+    "src/assets/nine.wav",
+    "src/assets/ten.wav",
     // "src/assets/mixdown.wav",
   ];
 
@@ -88,18 +87,18 @@ const Play = () => {
   useEffect(() => {
     if (isFirstPlaying) {
       audioNodes.forEach((node, index) => {
-        addOnEndedEventListener(node, index);
+        addEventListenerOnEnded(node, index);
       });
     } else {
       // add onEnded event listener only to the recreated node
-      addOnEndedEventListener(
+      addEventListenerOnEnded(
         audioNodes[currentTrackNumber],
         currentTrackNumber
       );
     }
   }, [audioNodes]);
 
-  function addOnEndedEventListener(node, index) {
+  function addEventListenerOnEnded(node, index) {
     console.log("Track #", index, "add onended event listener");
     if (index < audioNodes.length - 1) {
       node.onended = async () => {
@@ -132,7 +131,6 @@ const Play = () => {
         DateTimeAtPaused.current = Date.now();
         setIsFirstPlaying(true);
 
-        setCurrentTime(0);
         console.log("Last Track ended");
         setCurrentTrackNumber(0);
         setIsPlaying(false);
@@ -182,7 +180,6 @@ const Play = () => {
       pausedDuration.current += (Date.now() - DateTimeAtPaused.current) / 1000;
     }
     startAudioPlayback();
-    startDisplayingCurrentTime();
     DateTimeAtPaused.current = 0;
   };
 
@@ -226,22 +223,6 @@ const Play = () => {
     }
   }
 
-  const startDisplayingCurrentTime = () => {
-    // console.log("create a new interval");
-    // clearInterval(interval.current);
-    // interval.current = setInterval(() => {
-    //   setCurrentTime(audioContext.current.currentTime - pausedDuration.current);
-    // }, 100);
-  };
-
-  const progressBarClickToNavigate = (ev) => {
-    const percentageOfClickedPosition =
-      (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
-      ev.target.clientWidth;
-    evenTrackAudio.current.currentTime =
-      percentageOfClickedPosition * ctx.playOption.duration;
-  };
-
   return (
     <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">
       <Header pathNameFirstPart="play"></Header>
@@ -256,12 +237,6 @@ const Play = () => {
         </div>
         {/* Option buttons */}
         <OptionHandleBar />
-        {/* Progress bar */}
-        <ProgressBar
-          currentTime={currentTime}
-          duration={totalDurationOfSourceNodes}
-          progressBarClickToNavigate={progressBarClickToNavigate}
-        />
         {/* Control buttons */}
         <Controls
           isPlaying={isPlaying}

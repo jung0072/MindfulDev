@@ -18,6 +18,7 @@ const Play = () => {
   const [isPlaying, setIsPlaying] = React.useState(false);
   const [isFirstPlaying, setIsFirstPlaying] = React.useState(true);
   const [isLoading, setIsLoading] = React.useState(true);
+  const [staleTrackEnded, setStaleTrackEnded] = React.useState(false);
   const [audioNodes, setAudioNodes] = React.useState([]);
   const [audioBuffers, setAudioBuffers] = React.useState([]);
   const [totalDurationOfSourceNodes, setTotalDurationOfSourceNodes] =
@@ -35,14 +36,36 @@ const Play = () => {
   // Load audio files based on the ctx duration option
   useEffect(() => {
     console.log("duration changed", ctx.playOption.duration);
+    audioNodes.forEach((node, index) => {
+      if (index > currentTrackNumber) {
+        node.disconnect();
+      } else if (index === currentTrackNumber) {
+        node.onended = async () => {
+          setStaleTrackEnded(true);
+        };
+      }
+    });
     updateLoadAndConnectTracks(ctx.playOption);
     // update reference to ctx for EventListener to use
     ctxRef.current = ctx;
   }, [ctx.playOption.duration]);
-  
-  function updateLoadAndConnectTracks(playOption) {
+
+  useEffect (() => {
+    // console.log("staleTrackEnded changed", staleTrackEnded);
+    if (staleTrackEnded) {
+      // console.log("staleTrackEnded is true");
+      if (currentTrackNumber < audioNodes.length - 1) {
+        // console.log("start next track", audioNodes[currentTrackNumber + 1]);
+        audioNodes[currentTrackNumber + 1].start(0);
+        setCurrentTrackNumber(currentTrackNumber + 1);
+        setStaleTrackEnded(false);
+      }
+    }
+  }, [staleTrackEnded]);
+
+  async function updateLoadAndConnectTracks(playOption) {
     const filesToLoad = trackGenerator(playOption);
-    Promise.all(filesToLoad.map((url) => loadAudioFile(url)))
+    await Promise.all(filesToLoad.map((url) => loadAudioFile(url)))
       .then((audioBuffers) => {
         setAudioBuffers(audioBuffers);
         connectNodesToDestination(audioBuffers);
@@ -75,7 +98,7 @@ const Play = () => {
 
   // Add an onEnded event listener to each source node
   useEffect(() => {
-    console.log(audioNodes);
+    console.log("audioNodes changed useEffect", audioNodes[currentTrackNumber]);
     if (isFirstPlaying) {
       for (let index = 0; index < audioNodes.length; index++) {
         addEventListenerOnEnded(index);
@@ -92,7 +115,7 @@ const Play = () => {
   function addEventListenerOnEnded(trackNumber) {
     const node = audioNodes[trackNumber];
     // remove previous event listener
-    node.onended = null;
+    node.remove;
     if (trackNumber < audioNodes.length - 1) {
       console.log("add onEnded event listener to track #", trackNumber);
       node.onended = async () => {
@@ -108,6 +131,12 @@ const Play = () => {
         setIsLoading(true);
         console.log("Last Track ended");
         console.log(
+          audioContext.current.currentTime,
+          pausedDuration.current,
+          totalDurationOfSourceNodes,
+          audioNodes.length
+        );
+        console.log(
           "Average delay per track:",
           parseFloat(
             (audioContext.current.currentTime -
@@ -117,6 +146,8 @@ const Play = () => {
           ).toFixed(5),
           "seconds"
         );
+        console.log("base Latency:", audioContext.current.baseLatency);
+        console.log("output Latency:", audioContext.current.outputLatency);
         pausedDuration.current = 0;
         audioContext.current.close();
         audioContext.current = new (window.AudioContext ||

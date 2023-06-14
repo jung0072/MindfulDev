@@ -4,7 +4,7 @@ const PlayOptionContext = React.createContext();
 
 const PlayOptionProvider = ({ children }) => {
   const [playOption, setPlayOptionContext] = React.useState({
-    duration: "10mins",
+    duration: "5mins",
     level: "intermediate",
     bgMusic: "rain",
   });

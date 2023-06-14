@@ -1,9 +1,8 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 
-import ProgressBar from "../components/audioPlayer/ProgressBar";
 import OptionHandleBar from "../components/OptionHandleBar";
 import Controls from "../components/audioPlayer/Controls";
 
@@ -13,184 +12,227 @@ import { PlayOptionContext } from "../context/playOptionContext";
 
 import trackGenerator from "../utils/trackGenerator";
 
-import { useStateWithCallback } from "../hooks/useStateWithCallback";
-
 const Play = () => {
   const ctx = React.useContext(PlayOptionContext);
-  const evenTrackAudio = React.useRef();
-  const oddTrackAudio = React.useRef();
+  const ctxRef = useRef(ctx);
   const [isPlaying, setIsPlaying] = React.useState(false);
-  const [tracks, setTracks] = useStateWithCallback([]);
-  const [currentTrackNumber, setCurrentTrackNumber] = React.useState(-1);
-  const [currentTime, setCurrentTime] = React.useState("00:00");
-  const [duration, setDuration] = React.useState("00:00");
-  const [isEvenTrackLoaded, setIsEvenTrackLoaded] = React.useState(false);
-  const [isOddTrackLoaded, setIsOddTrackLoaded] = React.useState(false);
-  const [didEvenTrackEnd, setDidEvenTrackEnd] = React.useState(false);
-  const [didOddTrackEnd, setDidOddTrackEnd] = React.useState(false);
+  const [isFirstPlaying, setIsFirstPlaying] = React.useState(true);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [staleTrackEnded, setStaleTrackEnded] = React.useState(false);
+  const [audioNodes, setAudioNodes] = React.useState([]);
+  const [audioBuffers, setAudioBuffers] = React.useState([]);
+  const [totalDurationOfSourceNodes, setTotalDurationOfSourceNodes] =
+    React.useState(0);
+  const totalDurationOfEndedNodes = useRef(0);
+  const [currentTrackNumber, setCurrentTrackNumber] = React.useState(0);
+  const DateTimeAtPaused = useRef(0);
+  const pausedDuration = useRef(0);
+  const audioContext = React.useRef(
+    new (window.AudioContext || window.webkitAudioContext)({
+      bufferSize: 512,
+    })
+  );
 
-  console.log("--Play.jsx-----", currentTrackNumber);
-
-  // Add event listener to the audio elements
-  React.useEffect(() => {
-    trackAddEventListener();
-  }, []);
-
-  // Play next track depending on whether current track is loaded and prev track is ended
-  // Use this hook only for playing next track automatically
-  // Don't use this hook for pause/play
-  React.useEffect(() => {
-    console.log(
-      "Loaded/Ended States Got Changed \n",
-      "isEvenTrackLoaded/didOddTrackEnd:",
-      isEvenTrackLoaded,
-      didOddTrackEnd,
-      "isOddTrackLoaded/didEvenTrackEnd:",
-      isOddTrackLoaded,
-      didEvenTrackEnd
-    );
-
-    // When the last track ended
-    if (
-      currentTrackNumber >= tracks.length &&
-      (didOddTrackEnd || didEvenTrackEnd)
-    ) {
-      // Reset the states
-      setIsEvenTrackLoaded(false);
-      setIsOddTrackLoaded(false);
-      setDidEvenTrackEnd(false);
-      setDidOddTrackEnd(false);
-      setCurrentTrackNumber(0);
-      setIsPlaying(false);
-      evenTrackAudio.current.src = tracks[0];
-    }
-
-    if (isPlaying) {
-      // Play the even track if it is loaded and odd track ended
-      if (isEvenTrackLoaded && didOddTrackEnd) {
-        setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
-        // Reset the states
-        setIsEvenTrackLoaded(false);
-        setDidOddTrackEnd(false);
-        evenTrackAudio.current.play();
-        // Start loading the next track
-        if (currentTrackNumber < tracks.length - 1) {
-          oddTrackAudio.current.src = tracks[currentTrackNumber + 2];
-        }
+  // Load audio files based on the ctx duration option
+  useEffect(() => {
+    console.log("duration changed", ctx.playOption.duration);
+    audioNodes.forEach((node, index) => {
+      if (index > currentTrackNumber) {
+        node.disconnect();
+      } else if (index === currentTrackNumber) {
+        node.onended = async () => {
+          setStaleTrackEnded(true);
+        };
       }
-      // Play the odd track if it is loaded and even track ended
-      else if (isOddTrackLoaded && didEvenTrackEnd) {
-        setCurrentTrackNumber((currentTrackNumber) => currentTrackNumber + 1);
-        // Reset the states
-        setIsOddTrackLoaded(false);
-        setDidEvenTrackEnd(false);
-        oddTrackAudio.current.play();
-        // Start loading the next track
-        if (currentTrackNumber < tracks.length - 1) {
-          evenTrackAudio.current.src = tracks[currentTrackNumber + 2];
-        }
+    });
+    updateLoadAndConnectTracks(ctx.playOption);
+    // update reference to ctx for EventListener to use
+    ctxRef.current = ctx;
+  }, [ctx.playOption.duration]);
+
+  useEffect (() => {
+    // console.log("staleTrackEnded changed", staleTrackEnded);
+    if (staleTrackEnded) {
+      // console.log("staleTrackEnded is true");
+      if (currentTrackNumber < audioNodes.length - 1) {
+        // console.log("start next track", audioNodes[currentTrackNumber + 1]);
+        audioNodes[currentTrackNumber + 1].start(0);
+        setCurrentTrackNumber(currentTrackNumber + 1);
+        setStaleTrackEnded(false);
       }
     }
-  }, [isEvenTrackLoaded, isOddTrackLoaded, didEvenTrackEnd, didOddTrackEnd]);
+  }, [staleTrackEnded]);
 
-  // Generate tracks when ctx.playOption changes
-  React.useEffect(() => {
-    console.log("Play UseEffect / ctx:", ctx.playOption);
+  async function updateLoadAndConnectTracks(playOption) {
+    const filesToLoad = trackGenerator(playOption);
+    await Promise.all(filesToLoad.map((url) => loadAudioFile(url)))
+      .then((audioBuffers) => {
+        setAudioBuffers(audioBuffers);
+        connectNodesToDestination(audioBuffers);
+        setIsLoading(false);
+      })
+      .catch(console.error);
+  }
 
-    const generatedTracks = trackGenerator(ctx.playOption);
-    setTracks(generatedTracks, (_prevTracks, newTracks) => {
-      console.log("Loaded Track number:", newTracks.length);
-      if (isPlaying) {
-        // When the audio is playing, load the next track
-        // Currently playing track number is "currentTrackNumber"
-        if (currentTrackNumber % 2 === 0) {
-          oddTrackAudio.current.src = newTracks[currentTrackNumber + 1];
-        } else {
-          evenTrackAudio.current.src = newTracks[currentTrackNumber + 1];
-        }
-      } else {
-        // Load the first two tracks when the audio is not playing
-        oddTrackAudio.current.src = newTracks[1];
-        evenTrackAudio.current.src = newTracks[0];
+  // function to fetch and decode an audio file
+  async function loadAudioFile(url) {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await audioContext.current.decodeAudioData(arrayBuffer);
+    return audioBuffer;
+  }
+
+  // function to play a sequence of AudioBuffers
+  function connectNodesToDestination(audioBuffers) {
+    let sum = 0;
+    let nodes = audioBuffers.map((audioBuffer) => {
+      let node = audioContext.current.createBufferSource();
+      node.buffer = audioBuffer;
+      sum += audioBuffer.duration;
+      node.connect(audioContext.current.destination);
+      return node;
+    });
+    setAudioNodes(nodes);
+    setTotalDurationOfSourceNodes(sum);
+  }
+
+  // Add an onEnded event listener to each source node
+  useEffect(() => {
+    console.log("audioNodes changed useEffect", audioNodes[currentTrackNumber]);
+    if (isFirstPlaying) {
+      for (let index = 0; index < audioNodes.length; index++) {
+        addEventListenerOnEnded(index);
       }
-    });
-  }, [ctx]);
+    } else {
+      console.log("add onEnded event listener only to the recreated node");
+      // add onEnded event listener only to the recreated node
+      for (let index = currentTrackNumber; index < audioNodes.length; index++) {
+        addEventListenerOnEnded(index);
+      }
+    }
+  }, [audioNodes]);
 
-  // React.useEffect(() => {
-  //   console.log("Play useEffect / currentTrackNumber:", currentTrackNumber);
-  //   // evenTrackAudio.current.addEventListener("timeupdate", () => {
-  //   //   setCurrentTime(evenTrackAudio.current.currentTime);
-  //   // });
-  // }, [currentTrackNumber, tracks]);
+  function addEventListenerOnEnded(trackNumber) {
+    const node = audioNodes[trackNumber];
+    // remove previous event listener
+    node.remove;
+    if (trackNumber < audioNodes.length - 1) {
+      console.log("add onEnded event listener to track #", trackNumber);
+      node.onended = async () => {
+        console.log("Track #", trackNumber, "ended");
+        audioNodes[trackNumber + 1].start(0);
+        setCurrentTrackNumber(trackNumber + 1);
+        totalDurationOfEndedNodes.current += node.buffer.duration;
+      };
+    } else {
+      // Last track
+      console.log("add onEnded event listener to the last track");
+      node.onended = async () => {
+        setIsLoading(true);
+        console.log("Last Track ended");
+        console.log(
+          audioContext.current.currentTime,
+          pausedDuration.current,
+          totalDurationOfSourceNodes,
+          audioNodes.length
+        );
+        console.log(
+          "Average delay per track:",
+          parseFloat(
+            (audioContext.current.currentTime -
+              pausedDuration.current -
+              totalDurationOfSourceNodes) /
+              (audioNodes.length - 1)
+          ).toFixed(5),
+          "seconds"
+        );
+        console.log("base Latency:", audioContext.current.baseLatency);
+        console.log("output Latency:", audioContext.current.outputLatency);
+        pausedDuration.current = 0;
+        audioContext.current.close();
+        audioContext.current = new (window.AudioContext ||
+          window.webkitAudioContext)({
+          bufferSize: 512,
+        });
+        DateTimeAtPaused.current = Date.now();
+        setIsFirstPlaying(true);
 
-  const trackAddEventListener = () => {
-    // EVEN TRACK Event Listener
-    evenTrackAudio.current.addEventListener("loadedmetadata", () => {
-      console.log("even track loaded");
-      setIsEvenTrackLoaded(true);
-    });
-    evenTrackAudio.current.addEventListener("ended", () => {
-      console.log("even track ended");
-      setDidEvenTrackEnd(true);
-      setDidOddTrackEnd(false);
-    });
-
-    // ODD TRACK Event Listener
-    oddTrackAudio.current.addEventListener("loadedmetadata", () => {
-      console.log("odd track loaded");
-      setIsOddTrackLoaded(true);
-    });
-    oddTrackAudio.current.addEventListener("ended", () => {
-      console.log("odd track ended");
-      setDidOddTrackEnd(true);
-      setDidEvenTrackEnd(false);
-    });
-  };
-
-  const progressBarClickToNavigate = (ev) => {
-    const percentageOfClickedPosition =
-      (ev.clientX - (window.innerWidth - ev.target.clientWidth) / 2) /
-      ev.target.clientWidth;
-    evenTrackAudio.current.currentTime = percentageOfClickedPosition * duration;
-  };
-
-  const handleControl = (ev) => {
-    const buttonID = ev.currentTarget.id;
-    // console.log("handle control for button:", buttonID);
-    switch (buttonID) {
-      case "10sBack":
-        evenTrackAudio.current.currentTime -= 10;
-        break;
-
-      case "play":
-        console.log("---PLAY button clicked");
-        if (currentTrackNumber === -1) {
-          setDidOddTrackEnd(true);
-        } else {
-          if (currentTrackNumber % 2 === 0) {
-            evenTrackAudio.current.play();
-          } else {
-            oddTrackAudio.current.play();
-          }
-        }
-
-        setIsPlaying(true);
-
-        break;
-
-      case "pause":
-        if (currentTrackNumber % 2 === 0) {
-          evenTrackAudio.current.pause();
-        } else {
-          oddTrackAudio.current.pause();
-        }
+        setCurrentTrackNumber(0);
         setIsPlaying(false);
-        break;
+        totalDurationOfEndedNodes.current = 0;
 
-      default:
-        break;
+        // Reload all audio files for the next play
+        // useRef to get the latest ctx value in the callback
+        updateLoadAndConnectTracks(ctxRef.current.playOption);
+      };
     }
+  }
+
+  // For controlling the audio playback, we will use only one variable: pausedDuration
+  function handleControl() {
+    if (isPlaying) {
+      setIsPlaying(false);
+      pause();
+    } else {
+      setIsPlaying(true);
+      resume();
+    }
+  }
+
+  const pause = () => {
+    console.log("PAUSE");
+    audioNodes[currentTrackNumber].onended = null;
+    audioNodes[currentTrackNumber].stop();
+    DateTimeAtPaused.current = Date.now();
   };
+
+  const resume = () => {
+    if (DateTimeAtPaused.current != 0) {
+      pausedDuration.current += (Date.now() - DateTimeAtPaused.current) / 1000;
+    }
+    startAudioPlayback();
+    DateTimeAtPaused.current = 0;
+  };
+
+  function startAudioPlayback() {
+    if (isFirstPlaying) {
+      audioNodes[0].start();
+      setIsFirstPlaying(false);
+    } else {
+      console.log("--- PLAY the track #", currentTrackNumber);
+      // For resuming, create a new source node, connect it to the destination
+      const pausedNode = audioContext.current.createBufferSource();
+      pausedNode.buffer = audioBuffers[currentTrackNumber];
+      pausedNode.connect(audioContext.current.destination);
+      setAudioNodes((prev) => {
+        return prev.map((node, index) => {
+          if (index === currentTrackNumber) {
+            return pausedNode;
+          } else {
+            return node;
+          }
+        });
+      });
+      console.log(
+        "audioContext",
+        audioContext.current.currentTime,
+        "\npausedDuration",
+        pausedDuration.current,
+        "\ntotalDurationOfEndedNodes",
+        totalDurationOfEndedNodes.current
+      );
+      // pauseAt is for the timestamp where the CURRENT track is paused
+      let pausedAt =
+        audioContext.current.currentTime -
+        pausedDuration.current -
+        totalDurationOfEndedNodes.current;
+      if (pausedAt < 0) {
+        pausedAt = 0;
+      }
+      // Use the pausedNode to start the playback since setAudioNodes is async
+      pausedNode.start(0, pausedAt);
+    }
+  }
 
   return (
     <div className="app-container w-full h-full p-[32px] body-font font-poppins flex flex-col justify-between">
@@ -206,17 +248,14 @@ const Play = () => {
         </div>
         {/* Option buttons */}
         <OptionHandleBar />
-        {/* Progress bar */}
-        <ProgressBar
-          currentTime={currentTime}
-          duration={duration}
-          progressBarClickToNavigate={progressBarClickToNavigate}
-        />
         {/* Control buttons */}
-        <Controls isPlaying={isPlaying} handleControl={handleControl} />
+        <Controls
+          isPlaying={isPlaying}
+          handleControl={handleControl}
+          isLoading={isLoading}
+        />
         {/* Audio player */}
-        <audio ref={evenTrackAudio}></audio>
-        <audio ref={oddTrackAudio}></audio>
+        {/* <audio ref={audioTrack}></audio> */}
       </div>
       <Footer></Footer>
     </div>

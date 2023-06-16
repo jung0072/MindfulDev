@@ -16,6 +16,7 @@ import {
   AppBar,
   Avatar,
   Badge,
+  Box,
   Button,
   Card,
   Checkbox,
@@ -81,11 +82,12 @@ const Play = () => {
 
   // !! API CALL !!
   const [input, setInput] = useState("");
+  const [scriptDisplay, setScriptDisplay] = useState("");
 
   function callAPIWithInput() {
     const url = import.meta.env.VITE_BASE_URL_API;
     console.log("call API with input: ", input);
-    fetch(url, {
+    const scriptData = fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -96,7 +98,11 @@ const Play = () => {
     })
       .then((response) => {
         console.log("response", response);
-        return response;
+        return response.json();
+      })
+      .then((data) => {
+        console.log("data", data);
+        setScriptDisplay(data);
       })
       .catch((error) => {
         console.log("error", error);
@@ -108,8 +114,6 @@ const Play = () => {
       <Header pathNameFirstPart="play"></Header>
       <div className="w-full">
         <div className="w-full flex flex-col justify-between gap-5">
-          {/* Option buttons */}
-          {/* <OptionHandleBar /> */}
           <div className="flex flex-col gap-2">
             <div className="w-full flex">
               <TextField
@@ -144,6 +148,13 @@ const Play = () => {
               }}>
               Enter
             </Button>
+          </div>
+          <div>
+            <Box>
+              <Typography variant="h6" gutterBottom component="div">
+                {scriptDisplay}
+              </Typography>
+            </Box>
           </div>
         </div>
       </div>

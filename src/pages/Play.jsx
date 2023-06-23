@@ -43,7 +43,10 @@ import {
 } from "@mui/material";
 
 const Play = () => {
-  const baseURL = import.meta.env.VITE_BASE_URL_API;
+  const baseURL =
+    import.meta.env.MODE === "production"
+      ? import.meta.env.import.meta.env.VITE_BASE_URL_API_HEROKU
+      : import.meta.env.VITE_BASE_URL_API;
   const ctx = React.useContext(PlayOptionContext);
   const { transcript, resetTranscript } = useSpeechRecognition();
   const [isListening, setIsListening] = useState(false);
@@ -97,12 +100,13 @@ const Play = () => {
       }),
     })
       .then((response) => {
-        console.log("response", response);
         return response.json();
       })
       .then((data) => {
         const script = data.script;
-        
+        const token = data.token;
+        // console.log("token", token);
+        // console.log("script", script);
         setScriptDisplay(script);
 
         fetch(baseURL + "voice/", {

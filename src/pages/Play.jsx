@@ -44,8 +44,8 @@ import {
 
 const Play = () => {
   const baseURL =
-    import.meta.env.MODE === "production"
-      ? import.meta.env.import.meta.env.VITE_BASE_URL_API_HEROKU
+    import.meta.env.VITE_CURRENT_MODE === "production"
+      ? import.meta.env.VITE_BASE_URL_API_HEROKU
       : import.meta.env.VITE_BASE_URL_API;
   const ctx = React.useContext(PlayOptionContext);
   const { transcript, resetTranscript } = useSpeechRecognition();

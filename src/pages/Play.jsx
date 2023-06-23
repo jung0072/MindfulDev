@@ -43,6 +43,7 @@ import {
 } from "@mui/material";
 
 const Play = () => {
+  const baseURL = import.meta.env.VITE_BASE_URL_API;
   const ctx = React.useContext(PlayOptionContext);
   const { transcript, resetTranscript } = useSpeechRecognition();
   const [isListening, setIsListening] = useState(false);
@@ -80,14 +81,13 @@ const Play = () => {
     resetTranscript();
   };
 
-  // !! API CALL !!
+  // !! API CALL
   const [input, setInput] = useState("");
   const [scriptDisplay, setScriptDisplay] = useState("");
 
   function callAPIWithInput() {
-    const url = import.meta.env.VITE_BASE_URL_API_HEROKU;
     console.log("call API with input: ", input);
-    const scriptData = fetch(url, {
+    const scriptData = fetch(baseURL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -97,88 +97,38 @@ const Play = () => {
       }),
     })
       .then((response) => {
-        // console.log("response", response);
-        return response.blob();
+        console.log("response", response);
+        return response.json();
       })
-      .then((blob) => {
-        // console.log("data", data);
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result;
+      .then((data) => {
+        const script = data.script;
+        
+        setScriptDisplay(script);
 
-          console.log("result", result);
-          
-          // Parse the multipart response
-          const parts = parseMultipartResponse(result);
-
-          // Extract the script and audio parts
-          const scriptPart = findPartByContentType(parts, "text/plain");
-          const audioPart = findPartByContentType(parts, "audio/mpeg");
-
-          // Get the script and audio data
-          const scriptData = scriptPart.content;
-          const audioData = audioPart.content;
-
-          // Process the script and audio data as needed
-          setScriptDisplay(scriptData);
-
-          audioData = blob.audio;
-          var blob = new Blob([audioData], { type: "audio/mpeg" }); // Adjust the 'type' according to the actual audio format
-
-          // Create a URL for the Blob object
-          var audioUrl = URL.createObjectURL(blob);
-
-          // Create an audio element
-          var audio = new Audio(audioUrl);
-
-          // Play the audio
-          audio.play();
-        };
-        reader.readAsText(blob);        
+        fetch(baseURL + "voice/", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            script: script,
+          }),
+        })
+          .then((response) => {
+            return response.blob();
+          })
+          .then((data) => {
+            const audioURL = URL.createObjectURL(data);
+            const audio = new Audio(audioURL);
+            audio.play();
+          })
+          .catch((error) => {
+            console.log("error", error);
+          });
       })
       .catch((error) => {
         console.log("error", error);
       });
-  }
-
-  function parseMultipartResponse(responseText) {
-    const boundary = getBoundaryFromContentType(
-      responseText.headers.get("Content-Type")
-    );
-    const parts = responseText
-      .split(`--${boundary}`)
-      .filter((part) => part.trim() !== "");
-
-    return parts.map((part) => {
-      const [header, content] = part.split("\r\n\r\n");
-      const headers = parseHeaders(header);
-
-      return {
-        headers,
-        content: content.trim(),
-      };
-    });
-  }
-
-  function findPartByContentType(parts, contentType) {
-    return parts.find((part) => part.headers["Content-Type"] === contentType);
-  }
-
-  function getBoundaryFromContentType(contentType) {
-    const match = /boundary=(?:"([^"]+)"|([^;]+))/.exec(contentType);
-    return match[1] || match[2];
-  }
-
-  function parseHeaders(headerText) {
-    const headers = {};
-    const lines = headerText.trim().split("\r\n");
-
-    for (let line of lines) {
-      const [name, value] = line.split(":");
-      headers[name.trim()] = value.trim();
-    }
-
-    return headers;
   }
 
   return (
